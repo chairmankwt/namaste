@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spa Management</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.26.10/babel.min.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+  <script>
+    fetch('spa-v4_3.jsx')
+      .then(r => r.text())
+      .then(jsx => {
+        const fixed = jsx.replace(
+          /import\s*\{([^}]+)\}\s*from\s*["']react["']\s*;?/g,
+          'const {$1} = React;'
+        );
+        const code = Babel.transform(fixed + "\nReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));", {
+          presets: ['react'],
+          filename: 'app.jsx'
+        }).code;
+        const script = document.createElement('script');
+        script.textContent = code;
+        document.body.appendChild(script);
+      })
+      .catch(err => {
+        document.getElementById('root').innerHTML = '<p style="color:red;padding:20px;">Error loading app: ' + err.message + '</p>';
+      });
+  </script>
+</body>
+</html>
