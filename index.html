@@ -43,7 +43,7 @@
       .then(jsx => {
         const fixed = jsx.replace(
           /import\s*\{([^}]+)\}\s*from\s*["']react["']\s*;?/g,
-          'cost {$1} = React;'
+          'const {$1} = React;'
             ).replace(
                           /export\s+default\s+/g,
                           ''
