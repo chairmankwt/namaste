@@ -8,6 +8,32 @@
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone@7.26.10/babel.min.js"></script>
+    <script>
+        window.storage = {
+            async get(key) {
+                try {
+                    const r = await fetch('/api/storage?key=' + encodeURIComponent(key));
+                    const data = await r.json();
+                    return data ? JSON.stringify(data) : null;
+                } catch (e) {
+                    console.error('Storage get error:', e);
+                    return null;
+                }
+            },
+            async set(key, value) {
+                try {
+                    const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+                    await fetch('/api/storage?key=' + encodeURIComponent(key), {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(parsed)
+                    });
+                } catch (e) {
+                    console.error('Storage set error:', e);
+                }
+            }
+        };
+    </script>
 </head>
 <body>
   <div id="root"></div>
@@ -17,7 +43,7 @@
       .then(jsx => {
         const fixed = jsx.replace(
           /import\s*\{([^}]+)\}\s*from\s*["']react["']\s*;?/g,
-          'const {$1} = React;'
+          'cost {$1} = React;'
             ).replace(
                           /export\s+default\s+/g,
                           ''
