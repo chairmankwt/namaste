@@ -94,7 +94,7 @@ export default function App() {
   const [page, setPage] = useState("workspace");
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => { (async () => { try { const r = await window.storage.get(SK); if (r?.value) setData({ ...initData(), ...JSON.parse(r.value) }); } catch (e) { } setLoading(false); })(); }, []);
+  useEffect(() => { (async () => { try { const r = await window.storage.get(SK); if (r) setData({ ...initData(), ...JSON.parse(r) }); } catch (e) { console.error("Load error:", e); } setLoading(false); })(); }, []);
   const save = useCallback(async (d) => { setData(d); try { await window.storage.set(SK, JSON.stringify(d)); } catch (e) { } }, []);
   const addNotif = (msg, targets = []) => { const n = { id: uid(), message: msg, time: new Date().toISOString(), read: false, targets }; return { notifications: [n, ...(data.notifications || [])].slice(0, 200) }; };
 
