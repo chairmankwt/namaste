@@ -20,6 +20,50 @@ const browserNotify = (title, body, icon) => {
   }
 };
 
+// ══════════════ EMAIL NOTIFICATIONS ══════════════
+const sendEmailNotif = async (to, subject, html) => {
+  try {
+    await fetch("/api/send-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ to, subject, html }),
+    });
+  } catch (e) { console.warn("Email notification error:", e); }
+};
+
+const notifyStaffEmail = (data, staffId, action, details) => {
+  const staff = data.staff.find(s => s.id === staffId);
+  if (!staff || !staff.email) return;
+  const companyName = data.settings?.companyNameEn || data.settings?.companyNameAr || "Spa";
+  const logo = data.settings?.appLogoUrl || "";
+  const subject = `${action === "new" ? "📋 New Appointment" : action === "edit" ? "📝 Appointment Updated" : "❌ Appointment Cancelled"} — ${companyName}`;
+  const color = action === "cancel" ? "#dc2626" : action === "edit" ? "#f59e0b" : "#16a34a";
+  const html = `
+    <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:500px;margin:0 auto;border:1px solid #e5e5e5;border-radius:12px;overflow:hidden">
+      <div style="background:#1B4332;padding:16px 20px;text-align:center">
+        ${logo ? `<img src="${logo}" style="height:40px;width:40px;border-radius:8px;margin-bottom:8px" />` : ""}
+        <h2 style="color:#fff;margin:0;font-size:18px">${companyName}</h2>
+      </div>
+      <div style="padding:20px">
+        <div style="background:${color}15;border-left:4px solid ${color};padding:12px 16px;border-radius:0 8px 8px 0;margin-bottom:16px">
+          <p style="color:${color};font-weight:700;margin:0;font-size:15px">${action === "new" ? "New Appointment Assigned" : action === "edit" ? "Appointment Updated" : "Appointment Cancelled"}</p>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:14px">
+          <tr><td style="padding:8px 0;color:#888;width:100px">Customer</td><td style="padding:8px 0;font-weight:600">${details.customerName || "N/A"}</td></tr>
+          <tr><td style="padding:8px 0;color:#888">Phone</td><td style="padding:8px 0">${details.customerPhone || "N/A"}</td></tr>
+          <tr><td style="padding:8px 0;color:#888">Service</td><td style="padding:8px 0">${details.serviceName || "N/A"}</td></tr>
+          <tr><td style="padding:8px 0;color:#888">Date</td><td style="padding:8px 0;font-weight:600">${details.date || "N/A"}</td></tr>
+          <tr><td style="padding:8px 0;color:#888">Time</td><td style="padding:8px 0;font-weight:600">${details.time || "N/A"}</td></tr>
+          <tr><td style="padding:8px 0;color:#888">Duration</td><td style="padding:8px 0">${details.duration || "60"} min</td></tr>
+          ${details.address ? `<tr><td style="padding:8px 0;color:#888">Address</td><td style="padding:8px 0">${details.address}</td></tr>` : ""}
+          ${details.notes ? `<tr><td style="padding:8px 0;color:#888">Notes</td><td style="padding:8px 0">${details.notes}</td></tr>` : ""}
+        </table>
+      </div>
+      <div style="background:#f9f9f7;padding:12px 20px;text-align:center;font-size:11px;color:#999">Sent from ${companyName} Management System</div>
+    </div>`;
+  sendEmailNotif([staff.email], subject, html);
+};
+
 const uid = () => Math.random().toString(36).substr(2, 9);
 const gc = () => "GV-" + Math.random().toString(36).substr(2, 8).toUpperCase();
 const pkgCode = () => "PKG-" + Math.random().toString(36).substr(2, 6).toUpperCase();
@@ -112,8 +156,8 @@ function SC({ label, val, bg, color, onClick }) {
 // ── MAIN ──
 export default function App() {
   const [data, setData] = useState(initData);
-  const [user, setUser] = useState(null);
-  const [page, setPage] = useState("workspace");
+  const [user, setUser] = useState(() => { try { const s = localStorage.getItem("spa_user"); return s ? JSON.parse(s) : null; } catch(e) { return null; } });
+  const [page, setPage] = useState(() => { try { const u = localStorage.getItem("spa_user"); if (u) { const p = JSON.parse(u); return p.role === RL.STAFF ? "staff-view" : p.role === RL.DRIVER ? "driver-view" : "workspace"; } } catch(e){} return "workspace"; });
   const [loading, setLoading] = useState(true);
 
   const prevDataRef = useRef(null);
@@ -144,6 +188,15 @@ export default function App() {
       setLoading(false);
     })();
   }, []);
+
+  // ── Validate saved session against current data (deactivated/deleted users) ──
+  useEffect(() => {
+    if (!loading && user && data.users) {
+      const valid = data.users.find(u => u.id === user.id && u.active !== false);
+      if (!valid) { try { localStorage.removeItem("spa_user"); } catch(e){} setUser(null); setPage("workspace"); }
+      else if (JSON.stringify(valid) !== JSON.stringify(user)) { try { localStorage.setItem("spa_user", JSON.stringify(valid)); } catch(e){} setUser(valid); }
+    }
+  }, [loading, data.users]);
 
   // ── Real-time subscription — sync across all admins ──
   useEffect(() => {
@@ -192,7 +245,7 @@ export default function App() {
   const addNotif = (msg, targets = []) => { const n = { id: uid(), message: msg, time: new Date().toISOString(), read: false, targets }; return { notifications: [n, ...(data.notifications || [])].slice(0, 200) }; };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center" style={{ background: CL.bg }}><p style={{ color: CL.primary }} className="animate-pulse text-lg font-semibold">Loading...</p></div>;
-  if (!user) return <Login data={data} onLogin={u => { setUser(u); setPage(u.role === RL.STAFF ? "staff-view" : u.role === RL.DRIVER ? "driver-view" : "workspace"); requestNotifPermission(); }} />;
+  if (!user) return <Login data={data} onLogin={u => { try { localStorage.setItem("spa_user", JSON.stringify(u)); } catch(e){} setUser(u); setPage(u.role === RL.STAFF ? "staff-view" : u.role === RL.DRIVER ? "driver-view" : "workspace"); requestNotifPermission(); }} />;
 
   const isO = user.role === RL.OWNER, isA = user.role === RL.ADMIN, isS = user.role === RL.STAFF, isD = user.role === RL.DRIVER;
   const unread = (data.notifications || []).filter(n => !n.read && (!n.targets?.length || n.targets.includes(user.role) || n.targets.includes(user.id)));
@@ -218,7 +271,7 @@ export default function App() {
           <div className="flex items-center gap-3">
             <NotifBell data={data} save={save} user={user} unread={unread} />
             <div className="text-right hidden sm:block"><p className="text-sm font-semibold text-white">{user.name}</p><p className="text-xs capitalize" style={{ color: "rgba(255,255,255,0.5)" }}>{user.role}</p></div>
-            <button onClick={() => { setUser(null); setPage("workspace"); }} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition-all" style={{ background: "rgba(255,255,255,0.15)", color: "#fff" }}>
+            <button onClick={() => { try { localStorage.removeItem("spa_user"); } catch(e){} setUser(null); setPage("workspace"); }} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition-all" style={{ background: "rgba(255,255,255,0.15)", color: "#fff" }}>
               <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" /></svg> Logout
             </button>
           </div>
@@ -480,7 +533,7 @@ function ApptCard({ a, data, save, addNotif, onEdit, user }) {
       <PaymentDialog a={a} data={data} save={save} onClose={() => setShowPayDlg(false)} />
     </Modal>
     <Modal open={showInv} onClose={() => setShowInv(false)} title={`فاتورة ${inv?.invoiceNo || "New"}`}>{inv ? <InvView inv={inv} data={data} /> : <CreateInv a={a} data={data} save={save} onDone={() => setShowInv(false)} />}</Modal>
-    <Modal open={showCancelDlg} onClose={() => setShowCancelDlg(false)} title="Cancel Appointment"><div className="space-y-4"><p className="text-sm" style={{ color: CL.mid }}>Cancel appointment for <strong>{c?.name || "?"}</strong> — {a.serviceName} on {fD(a.date)} at {a.time || "?"}?</p><div className="flex justify-end gap-3"><Btn c="ghost" onClick={() => setShowCancelDlg(false)}>No, Keep</Btn><Btn c="danger" onClick={() => { let up = { ...data, appointments: data.appointments.map(x => x.id === a.id ? { ...x, status: "cancelled", cancelledAt: new Date().toISOString(), cancelledBy: user?.name || "" } : x), ...addNotif(`❌ Cancelled: ${c?.name} - ${a.serviceName}`, [RL.ADMIN, RL.STAFF]) }; if (a.paymentMethod === "package" && a.packageId) { up.packages = (up.packages || []).map(p => { if (p.id !== a.packageId) return p; return { ...p, sessions: p.sessions.map(s => s.appointmentId === a.id ? { ...s, used: false, usedDate: null, appointmentId: null } : s), status: "active" }; }); } /* If child cancelled, update parent invoice total */ if (isChild && parentAppt) { const parentExtras = parentAppt.extraServices || []; const remainingCost = (parseFloat(parentAppt.cost) || 0) + parentExtras.filter(es => !es.cancelled).reduce((s, es) => s + (parseFloat(es.cost) || 0), 0) - (parseFloat(a.cost) || 0); up.invoices = (up.invoices || data.invoices).map(i => i.appointmentId === parentAppt.id ? { ...i, amount: remainingCost } : i); } save(up); setShowCancelDlg(false); }}>Yes, Cancel</Btn></div></div></Modal>
+    <Modal open={showCancelDlg} onClose={() => setShowCancelDlg(false)} title="Cancel Appointment"><div className="space-y-4"><p className="text-sm" style={{ color: CL.mid }}>Cancel appointment for <strong>{c?.name || "?"}</strong> — {a.serviceName} on {fD(a.date)} at {a.time || "?"}?</p><div className="flex justify-end gap-3"><Btn c="ghost" onClick={() => setShowCancelDlg(false)}>No, Keep</Btn><Btn c="danger" onClick={() => { let up = { ...data, appointments: data.appointments.map(x => x.id === a.id ? { ...x, status: "cancelled", cancelledAt: new Date().toISOString(), cancelledBy: user?.name || "" } : x), ...addNotif(`❌ Cancelled: ${c?.name} - ${a.serviceName}`, [RL.ADMIN, RL.STAFF]) }; if (a.paymentMethod === "package" && a.packageId) { up.packages = (up.packages || []).map(p => { if (p.id !== a.packageId) return p; return { ...p, sessions: p.sessions.map(s => s.appointmentId === a.id ? { ...s, used: false, usedDate: null, appointmentId: null } : s), status: "active" }; }); } /* If child cancelled, update parent invoice total */ if (isChild && parentAppt) { const parentExtras = parentAppt.extraServices || []; const remainingCost = (parseFloat(parentAppt.cost) || 0) + parentExtras.filter(es => !es.cancelled).reduce((s, es) => s + (parseFloat(es.cost) || 0), 0) - (parseFloat(a.cost) || 0); up.invoices = (up.invoices || data.invoices).map(i => i.appointmentId === parentAppt.id ? { ...i, amount: remainingCost } : i); } save(up); const cancelDetails = { customerName: c?.name || "?", customerPhone: c?.phone || "", serviceName: a.serviceName, date: fD(a.date), time: a.time || "", duration: a.duration || "", address: a.customerAddress || "", notes: "Cancelled by " + (user?.name || "admin") }; notifyStaffEmail(data, a.staffId, "cancel", cancelDetails); if (a.extraServices) { a.extraServices.filter(es => es.staffId && es.staffId !== a.staffId).forEach(es => { notifyStaffEmail(data, es.staffId, "cancel", { ...cancelDetails, serviceName: es.serviceName }); }); } setShowCancelDlg(false); }}>Yes, Cancel</Btn></div></div></Modal>
     {/* Package Detail Modal */}
     <Modal open={showPkgDetail} onClose={() => setShowPkgDetail(false)} title="📦 Customer Package">{(() => { const ap = (data.packages || []).find(p => p.customerId === a.customerId && p.status === "active"); if (!ap) return <p style={{ color: CL.light }}>No active package</p>; const rem = (ap.sessions || []).filter(s => !s.used).length; const tot = (ap.sessions || []).length; const pct = tot > 0 ? ((tot - rem) / tot) * 100 : 0; const perS = ap.perSession || (ap.type === "sessions25" ? 25 : 20); return <div className="space-y-4"><div className="rounded-xl p-4" style={{ background: "#E8F5E9" }}><p className="font-bold">{ap.type === "sessions25" ? "5 Sessions (25 KD)" : "5 Sessions (20 KD)"}</p><p className="text-sm" style={{ color: CL.mid }}>Code: <strong className="font-mono">{ap.code}</strong></p><p className="text-sm" style={{ color: CL.mid }}>Valid for: <strong>{perS} KD services</strong></p><p className="text-sm" style={{ color: CL.mid }}>Balance: <strong>{rem}/{tot} sessions</strong></p><p className="text-sm" style={{ color: CL.mid }}>Paid: <strong>{ap.price} KD</strong></p></div><div className="w-full h-3 rounded-full" style={{ background: "#f0f0f0" }}><div className="h-full rounded-full" style={{ width: `${pct}%`, background: pct >= 100 ? CL.info : CL.success }} /></div><div className="space-y-1">{(ap.sessions || []).map((s, i) => { const sa = s.appointmentId ? data.appointments.find(x => x.id === s.appointmentId) : null; const isCan = sa?.status === "cancelled"; return <div key={s.id} className="flex items-center gap-2 p-2 rounded-lg text-sm" style={{ background: s.used ? (isCan ? CL.warnBg : "#f5f5f5") : CL.successBg }}><span className="font-mono text-xs font-bold" style={{ color: s.used ? (isCan ? CL.warn : CL.light) : CL.success }}>{s.code}</span><span className="text-xs" style={{ color: CL.light }}>#{i+1}</span>{s.used ? (isCan ? <span className="ml-auto text-xs" style={{ color: CL.warn }}>Cancelled</span> : <span className="ml-auto text-xs" style={{ color: CL.light }}>✓ {s.usedDate}</span>) : <span className="ml-auto text-xs" style={{ color: CL.success }}>Available</span>}</div>; })}</div></div>; })()}</Modal>
   </div>);
@@ -785,6 +838,13 @@ function BookingModal({ open, onClose, data, save, addNotif, editA, defDate, use
     const stN = data.staff.find(x => x.id === f.staffId)?.name || "";
     const nots = addNotif(`${editA ? "📝 Updated" : "📋 New"}: ${f.cn} - ${allSvcNames} w/ ${allStaffNames || stN} on ${fD(f.date)} ${f.time}`, [RL.ADMIN, RL.STAFF, RL.DRIVER]);
     save({ ...data, appointments: na, customers: [...data.customers], invoices: ni, invoiceCounter: nc, ...nots });
+    // Email notification to assigned staff
+    const emailDetails = { customerName: f.cn, customerPhone: fPhone(f.cp), serviceName: allSvcNames, date: fD(f.date), time: f.time, duration: f.duration, address: f.ca, notes: f.notes };
+    notifyStaffEmail(data, f.staffId, editA ? "edit" : "new", emailDetails);
+    // Also email extra service staff
+    validExtras.filter(es => es.staffId && es.staffId !== f.staffId).forEach(es => {
+      notifyStaffEmail(data, es.staffId, editA ? "edit" : "new", { ...emailDetails, serviceName: es.serviceName });
+    });
     onClose();
   };
   const fc = cS.length > 1 ? data.customers.filter(c => (c.name || "").toLowerCase().includes(cS.toLowerCase()) || (c.phone || "").includes(cS)) : [];
