@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 // Supabase is loaded via CDN in index.html (window.supabase global)
 const SUPABASE_URL = "https://vntmyzgnfdddegaddfli.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZudG15emduZmRkZGVnYWRkZmxpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI3MzEyMDAsImV4cCI6MjA4ODMwNzIwMH0.8rxflD6avKf7O2xXLyG2dBm-uhMQEaa4mEryZK_X_og";
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const SB_TABLE = "spa_data";
 const SB_ROW_ID = "main";
 
@@ -123,14 +123,14 @@ export default function App() {
   useEffect(() => {
     (async () => {
       try {
-        const { data: row, error } = await supabase.from(SB_TABLE).select("payload").eq("id", SB_ROW_ID).single();
+        const { data: row, error } = await sb.from(SB_TABLE).select("payload").eq("id", SB_ROW_ID).single();
         if (row && row.payload) {
           const parsed = typeof row.payload === "string" ? JSON.parse(row.payload) : row.payload;
           setData({ ...initData(), ...parsed });
         } else if (error && error.code === "PGRST116") {
           // Row doesn't exist yet — seed it
           const seed = initData();
-          await supabase.from(SB_TABLE).insert({ id: SB_ROW_ID, payload: seed });
+          await sb.from(SB_TABLE).insert({ id: SB_ROW_ID, payload: seed });
           setData(seed);
         } else {
           // Fallback to localStorage
@@ -147,7 +147,7 @@ export default function App() {
 
   // ── Real-time subscription — sync across all admins ──
   useEffect(() => {
-    const channel = supabase.channel("spa-realtime").on(
+    const channel = sb.channel("spa-realtime").on(
       "postgres_changes",
       { event: "UPDATE", schema: "public", table: SB_TABLE, filter: `id=eq.${SB_ROW_ID}` },
       (payload) => {
@@ -175,14 +175,14 @@ export default function App() {
         }
       }
     ).subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return () => { sb.removeChannel(channel); };
   }, []);
 
   // ── Save to Supabase + localStorage backup ──
   const save = useCallback(async (d) => {
     setData(d);
     try {
-      await supabase.from(SB_TABLE).upsert({ id: SB_ROW_ID, payload: d });
+      await sb.from(SB_TABLE).upsert({ id: SB_ROW_ID, payload: d });
     } catch (e) {
       console.error("Supabase save error:", e);
     }
