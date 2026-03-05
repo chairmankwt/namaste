@@ -62,30 +62,4 @@
       });
   </script>
 </body>
-</html></head>
-<body>
-  <div id="root"></div>
-  <script>
-  .then(r => r.text())
-      .then(jsx => {
-        const fixed = jsx.replace(
-          /import\s*\{([^}]+)\}\s*from\s*["']react["']\s*;?/g,
-          'const {$1} = React;'
-            ).replace(
-                          /export\s+default\s+/g,
-                          ''
-                      );
-        const code = Babel.transform(fixed + "\nReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));", {
-          presets: ['react'],
-          filename: 'app.jsx'
-        }).code;
-        const script = document.createElement('script');
-        script.textContent = code;
-        document.body.appendChild(script);
-      })
-      .catch(err => {
-        document.getElementById('root').innerHTML = '<p style="color:red;padding:20px;">Error loading app: ' + err.message + '</p>';
-      });
-  </script>
-</body>
 </html>
