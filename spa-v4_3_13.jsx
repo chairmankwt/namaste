@@ -1,12 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { createClient } from "@supabase/supabase-js";
-
 // ══════════════ SUPABASE CONFIG ══════════════
 // Replace these with your Supabase project credentials
 const SUPABASE_URL = "https://vntmyzgnfdddegaddfli.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZudG15emduZmRkZGVnYWRkZmxpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI3MzEyMDAsImV4cCI6MjA4ODMwNzIwMH0.8rxflD6avKf7O2xXLyG2dBm-uhMQEaa4mEryZK_X_og";
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-const SB_TABLE = "spa_data";
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);const SB_TABLE = "spa_data";
 const SB_ROW_ID = "main";
 
 // ══════════════ BROWSER NOTIFICATIONS ══════════════
