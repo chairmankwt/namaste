@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from "react";
 
 const uid = () => Math.random().toString(36).substr(2, 9);
 const gc = () => "GV-" + Math.random().toString(36).substr(2, 8).toUpperCase();
+const pkgCode = () => "PKG-" + Math.random().toString(36).substr(2, 6).toUpperCase();
+const sesCode = () => "SES-" + Math.random().toString(36).substr(2, 8).toUpperCase();
 const iN = (n) => `INV-${String(n).padStart(5, "0")}`;
 const localDS = (d) => { const y = d.getFullYear(); const m = String(d.getMonth() + 1).padStart(2, "0"); const dd = String(d.getDate()).padStart(2, "0"); return `${y}-${m}-${dd}`; };
 const TD = () => localDS(new Date());
@@ -29,7 +31,7 @@ const initS = {
 const initData = () => ({
   users: [{ id: "u1", username: "chairman", password: "Savior1$", role: RL.OWNER, name: "Chairman", active: true, permissions: {}, email: "" }],
   customers: [], staff: [], drivers: [], services: [], appointments: [], invoices: [],
-  giftVouchers: [], invoiceCounter: 1, notifications: [], settings: { ...initS },
+  giftVouchers: [], packages: [], invoiceCounter: 1, notifications: [], settings: { ...initS },
 });
 
 // ── COLORS ──
@@ -105,7 +107,7 @@ export default function App() {
   const unread = (data.notifications || []).filter(n => !n.read && (!n.targets?.length || n.targets.includes(user.role) || n.targets.includes(user.id)));
 
   const nav = [];
-  if (isO || isA) { nav.push({ id: "workspace", l: "🏠 Workspace" }); nav.push({ id: "dashboard", l: "📊 Dashboard" }); nav.push({ id: "bookings", l: "📅 Bookings" }); nav.push({ id: "customers", l: "👥 Customers" }); }
+  if (isO || isA) { nav.push({ id: "workspace", l: "🏠 Workspace" }); nav.push({ id: "dashboard", l: "📊 Dashboard" }); nav.push({ id: "bookings", l: "📅 Bookings" }); nav.push({ id: "customers", l: "👥 Customers" }); nav.push({ id: "packages", l: "📦 Packages" }); }
   if (isO) { nav.push({ id: "invoices", l: "🧾 Invoices" }); nav.push({ id: "reports", l: "📈 Reports" }); nav.push({ id: "vouchers", l: "🎁 Vouchers" }); nav.push({ id: "archive", l: "🗃 Archive" }); nav.push({ id: "settings", l: "⚙️ Settings" }); }
   if (isA) { nav.push({ id: "vouchers", l: "🎁 Vouchers" }); }
   if (isS) { nav.push({ id: "staff-view", l: "📋 My Appointments" }); nav.push({ id: "staff-settings", l: "⚙️ Dashboard" }); }
@@ -142,6 +144,7 @@ export default function App() {
           {page === "customers" && <Customers data={data} save={save} isO={isO} />}
           {page === "invoices" && <Invoices data={data} save={save} />}
           {page === "reports" && <Reports data={data} />}
+          {page === "packages" && (isO || isA) && <Packages data={data} save={save} user={user} />}
           {page === "vouchers" && <Vouchers data={data} save={save} user={user} />}
           {page === "archive" && isO && <Archive data={data} save={save} />}
           {page === "settings" && isO && <SettingsHub data={data} save={save} />}
@@ -343,7 +346,7 @@ function MiniCal({ date, onSelect, data }) {
 
 // ── APPOINTMENT CARD ──
 function ApptCard({ a, data, save, addNotif, onEdit, user }) {
-  const [showInv, setShowInv] = useState(false); const [showPayDlg, setShowPayDlg] = useState(false); const [showCancelDlg, setShowCancelDlg] = useState(false);
+  const [showInv, setShowInv] = useState(false); const [showPayDlg, setShowPayDlg] = useState(false); const [showCancelDlg, setShowCancelDlg] = useState(false); const [showPkgDetail, setShowPkgDetail] = useState(false);
   const c = data.customers.find(x => x.id === a.customerId); const st = data.staff.find(x => x.id === a.staffId);
   const inv = data.invoices.find(i => i.appointmentId === a.id);
   const isPaid = a.paymentStatus === "paid"; const isUnpaid = a.status === "completed" && !isPaid;
@@ -355,7 +358,7 @@ function ApptCard({ a, data, save, addNotif, onEdit, user }) {
     <div className="p-4 flex items-start gap-3">
       <div className="w-14 h-14 rounded-xl flex flex-col items-center justify-center shrink-0" style={{ background: CL.accentL }}><span className="text-sm font-bold" style={{ color: CL.primary }}>{a.time || "?"}</span><span className="text-[10px]" style={{ color: CL.light }}>{a.duration || 60}m</span></div>
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap"><span className="font-bold">{c?.name || "?"}</span>{hasPref && <Tag bg={CL.purpleBg} color={CL.purple}>⭐ Preferred</Tag>}{prefMis && <Tag bg={CL.warnBg} color={CL.warn}>⚠ Prefers {data.staff.find(x => x.id === c.preferredStaffId)?.name}</Tag>}</div>
+        <div className="flex items-center gap-2 flex-wrap"><span className="font-bold">{c?.name || "?"}</span>{(() => { const ap = (data.packages || []).find(p => p.customerId === a.customerId && p.status === "active"); if (!ap) return null; const rem = (ap.sessions || []).filter(s => !s.used).length; return <button onClick={(e) => { e.stopPropagation(); setShowPkgDetail(true); }} className="cursor-pointer hover:opacity-80"><Tag bg="#E8F5E9" color="#2E7D32">📦 {rem} sessions ({ap.perSession || (ap.type === "sessions25" ? 25 : 20)} KD)</Tag></button>; })()}{hasPref && <Tag bg={CL.purpleBg} color={CL.purple}>⭐ Preferred</Tag>}{prefMis && <Tag bg={CL.warnBg} color={CL.warn}>⚠ Prefers {data.staff.find(x => x.id === c.preferredStaffId)?.name}</Tag>}</div>
         <p className="text-sm mt-0.5" style={{ color: CL.mid }}>{a.serviceName} · {st?.name || "N/A"}</p>
         <p className="text-xs mt-0.5" style={{ color: CL.light }}>📞 {fPhone(c?.phone)} · 📍 {c?.address || ""}</p>
         {a.notes && <p className="text-xs italic mt-0.5" style={{ color: CL.light }}>📝 {a.notes}</p>}
@@ -365,7 +368,7 @@ function ApptCard({ a, data, save, addNotif, onEdit, user }) {
       <div className="text-right shrink-0 space-y-1.5">
         <p className="text-lg font-bold">{a.cost} KD</p>
         <Tag bg={a.status === "completed" ? CL.successBg : a.status === "confirmed" ? CL.infoBg : CL.warnBg} color={a.status === "completed" ? CL.success : a.status === "confirmed" ? CL.info : CL.warn}>{a.status}</Tag>
-        {isPaid ? <Tag bg={CL.successBg} color={CL.success}>✅ {a.paymentMethod === "cash" ? "Cash" : a.paymentMethod === "link" ? "Link" : a.paymentMethod === "voucher" ? "Voucher" : ""}</Tag> : isUnpaid ? <Tag bg={CL.dangerBg} color={CL.danger}>⚠ UNPAID</Tag> : <Tag bg="#f5f5f5" color={CL.light}>Pending</Tag>}
+        {isPaid ? <Tag bg={a.paymentMethod === "package" ? "#E8F5E9" : CL.successBg} color={a.paymentMethod === "package" ? "#2E7D32" : CL.success}>✅ {a.paymentMethod === "cash" ? "Cash" : a.paymentMethod === "link" ? "Link" : a.paymentMethod === "voucher" ? "Voucher" : a.paymentMethod === "package" ? "📦 Package" : ""}</Tag> : isUnpaid ? <Tag bg={CL.dangerBg} color={CL.danger}>⚠ UNPAID</Tag> : <Tag bg="#f5f5f5" color={CL.light}>Pending</Tag>}
         {voucher && <Tag bg={CL.purpleBg} color={CL.purple}>🎁 {voucher.code}</Tag>}
       </div>
     </div>
@@ -381,13 +384,16 @@ function ApptCard({ a, data, save, addNotif, onEdit, user }) {
       <PaymentDialog a={a} data={data} save={save} onClose={() => setShowPayDlg(false)} />
     </Modal>
     <Modal open={showInv} onClose={() => setShowInv(false)} title={`فاتورة ${inv?.invoiceNo || "New"}`}>{inv ? <InvView inv={inv} data={data} /> : <CreateInv a={a} data={data} save={save} onDone={() => setShowInv(false)} />}</Modal>
-    <Modal open={showCancelDlg} onClose={() => setShowCancelDlg(false)} title="Cancel Appointment"><div className="space-y-4"><p className="text-sm" style={{ color: CL.mid }}>Cancel appointment for <strong>{c?.name || "?"}</strong> — {a.serviceName} on {fD(a.date)} at {a.time || "?"}?</p><div className="flex justify-end gap-3"><Btn c="ghost" onClick={() => setShowCancelDlg(false)}>No, Keep</Btn><Btn c="danger" onClick={() => { const up = { ...data, appointments: data.appointments.map(x => x.id === a.id ? { ...x, status: "cancelled", cancelledAt: new Date().toISOString(), cancelledBy: user?.name || "" } : x), ...addNotif(`❌ Cancelled: ${c?.name} - ${a.serviceName}`, [RL.ADMIN, RL.STAFF]) }; save(up); setShowCancelDlg(false); }}>Yes, Cancel</Btn></div></div></Modal>
+    <Modal open={showCancelDlg} onClose={() => setShowCancelDlg(false)} title="Cancel Appointment"><div className="space-y-4"><p className="text-sm" style={{ color: CL.mid }}>Cancel appointment for <strong>{c?.name || "?"}</strong> — {a.serviceName} on {fD(a.date)} at {a.time || "?"}?</p><div className="flex justify-end gap-3"><Btn c="ghost" onClick={() => setShowCancelDlg(false)}>No, Keep</Btn><Btn c="danger" onClick={() => { let up = { ...data, appointments: data.appointments.map(x => x.id === a.id ? { ...x, status: "cancelled", cancelledAt: new Date().toISOString(), cancelledBy: user?.name || "" } : x), ...addNotif(`❌ Cancelled: ${c?.name} - ${a.serviceName}`, [RL.ADMIN, RL.STAFF]) }; if (a.paymentMethod === "package" && a.packageId) { up.packages = (up.packages || []).map(p => { if (p.id !== a.packageId) return p; return { ...p, sessions: p.sessions.map(s => s.appointmentId === a.id ? { ...s, used: false, usedDate: null, appointmentId: null } : s), status: "active" }; }); } save(up); setShowCancelDlg(false); }}>Yes, Cancel</Btn></div></div></Modal>
+    {/* Package Detail Modal */}
+    <Modal open={showPkgDetail} onClose={() => setShowPkgDetail(false)} title="📦 Customer Package">{(() => { const ap = (data.packages || []).find(p => p.customerId === a.customerId && p.status === "active"); if (!ap) return <p style={{ color: CL.light }}>No active package</p>; const rem = (ap.sessions || []).filter(s => !s.used).length; const tot = (ap.sessions || []).length; const pct = tot > 0 ? ((tot - rem) / tot) * 100 : 0; const perS = ap.perSession || (ap.type === "sessions25" ? 25 : 20); return <div className="space-y-4"><div className="rounded-xl p-4" style={{ background: "#E8F5E9" }}><p className="font-bold">{ap.type === "sessions25" ? "5 Sessions (25 KD)" : "5 Sessions (20 KD)"}</p><p className="text-sm" style={{ color: CL.mid }}>Code: <strong className="font-mono">{ap.code}</strong></p><p className="text-sm" style={{ color: CL.mid }}>Valid for: <strong>{perS} KD services</strong></p><p className="text-sm" style={{ color: CL.mid }}>Balance: <strong>{rem}/{tot} sessions</strong></p><p className="text-sm" style={{ color: CL.mid }}>Paid: <strong>{ap.price} KD</strong></p></div><div className="w-full h-3 rounded-full" style={{ background: "#f0f0f0" }}><div className="h-full rounded-full" style={{ width: `${pct}%`, background: pct >= 100 ? CL.info : CL.success }} /></div><div className="space-y-1">{(ap.sessions || []).map((s, i) => { const sa = s.appointmentId ? data.appointments.find(x => x.id === s.appointmentId) : null; const isCan = sa?.status === "cancelled"; return <div key={s.id} className="flex items-center gap-2 p-2 rounded-lg text-sm" style={{ background: s.used ? (isCan ? CL.warnBg : "#f5f5f5") : CL.successBg }}><span className="font-mono text-xs font-bold" style={{ color: s.used ? (isCan ? CL.warn : CL.light) : CL.success }}>{s.code}</span><span className="text-xs" style={{ color: CL.light }}>#{i+1}</span>{s.used ? (isCan ? <span className="ml-auto text-xs" style={{ color: CL.warn }}>Cancelled</span> : <span className="ml-auto text-xs" style={{ color: CL.light }}>✓ {s.usedDate}</span>) : <span className="ml-auto text-xs" style={{ color: CL.success }}>Available</span>}</div>; })}</div></div>; })()}</Modal>
   </div>);
 }
 
 // ── PAYMENT DIALOG ──
 function PaymentDialog({ a, data, save, onClose }) {
   const [vCode, setVCode] = useState(""); const [vErr, setVErr] = useState("");
+  const [pkgCode, setPkgCode] = useState(""); const [pkgErr, setPkgErr] = useState("");
   const setPay = (status, method, voucherId) => {
     let up = { ...data, appointments: data.appointments.map(x => x.id === a.id ? { ...x, paymentStatus: status, paymentMethod: method || "", voucherId: voucherId || "" } : x), invoices: data.invoices.map(i => i.appointmentId === a.id ? { ...i, paymentStatus: status, paymentMethod: method || "" } : i) };
     if (voucherId) up = { ...up, giftVouchers: (up.giftVouchers || []).map(v => v.id === voucherId ? { ...v, status: "consumed", usedDate: TD(), usedAppointmentId: a.id } : v) };
@@ -398,12 +404,46 @@ function PaymentDialog({ a, data, save, onClose }) {
     if (!v) { setVErr("Invalid or already consumed voucher code"); return; }
     setPay("paid", "voucher", v.id);
   };
+  const applyPackage = () => {
+    const code = pkgCode.toUpperCase().trim();
+    let foundPkg = null; let foundSes = null;
+    (data.packages || []).forEach(p => {
+      if (p.status !== "active") return;
+      if (p.sessions && p.sessions.length) { const ses = p.sessions.find(s => s.code === code && !s.used); if (ses) { foundPkg = p; foundSes = ses; } }
+    });
+    if (!foundPkg || !foundSes) { setPkgErr("Invalid or already used session code"); return; }
+    if (foundPkg.customerId !== a.customerId) { setPkgErr("This package belongs to a different customer"); return; }
+    const pkgPerSession = foundPkg.perSession || (foundPkg.type === "sessions25" ? 25 : 20);
+    const apptCost = parseFloat(a.cost) || 0;
+    if (apptCost !== pkgPerSession) { setPkgErr(`This package is valid for ${pkgPerSession} KD services only. This appointment costs ${apptCost} KD.`); return; }
+    // Mark session as used + link to appointment
+    let up = { ...data,
+      appointments: data.appointments.map(x => x.id === a.id ? { ...x, paymentStatus: "paid", paymentMethod: "package", packageId: foundPkg.id, packageSessionId: foundSes.id } : x),
+      invoices: data.invoices.map(i => i.appointmentId === a.id ? { ...i, paymentStatus: "paid", paymentMethod: "package" } : i),
+      packages: (data.packages || []).map(p => {
+        if (p.id !== foundPkg.id) return p;
+        const upd = { ...p, sessions: p.sessions.map(s => s.id === foundSes.id ? { ...s, used: true, usedDate: TD(), appointmentId: a.id } : s) };
+        if (upd.sessions.every(s => s.used)) upd.status = "consumed";
+        return upd;
+      })
+    };
+    save(up); onClose();
+  };
+  // Check if customer has active package
+  const custPkg = (data.packages || []).find(p => p.customerId === a.customerId && p.status === "active");
   return (<div className="space-y-4">
     <p className="text-sm" style={{ color: CL.mid }}>Current: <strong>{a.paymentStatus === "paid" ? `Paid (${a.paymentMethod || "?"})` : "Not Paid"}</strong></p>
     <div className="grid grid-cols-2 gap-3">
       <Btn c="dangerO" onClick={() => setPay("pending", "")}>❌ Not Paid</Btn>
       <Btn c="success" onClick={() => setPay("paid", "cash")}>💵 Cash Paid</Btn>
       <Btn c="info" onClick={() => setPay("paid", "link")}>🔗 Link Paid</Btn>
+    </div>
+    {/* Pay with Package */}
+    <div className="border-t pt-4" style={{ borderColor: CL.bdr }}>
+      <p className="text-sm font-bold mb-2" style={{ color: "#2E7D32" }}>📦 Pay with Package Session Code</p>
+      {custPkg && <div className="mb-2 p-2 rounded-lg text-xs" style={{ background: "#E8F5E9", color: "#2E7D32" }}>✓ Customer has active package ({custPkg.perSession || (custPkg.type === "sessions25" ? 25 : 20)} KD/session) — {(custPkg.sessions || []).filter(s=>!s.used).length} sessions remaining</div>}
+      <div className="flex gap-2"><Inp value={pkgCode} onChange={v => { setPkgCode(v); setPkgErr(""); }} ph="Paste session code (e.g. SES-XXXXXXXX)" className="flex-1" /><Btn c="success" onClick={applyPackage}>Apply</Btn></div>
+      {pkgErr && <p className="text-xs mt-2" style={{ color: CL.danger }}>{pkgErr}</p>}
     </div>
     <div className="border-t pt-4" style={{ borderColor: CL.bdr }}>
       <p className="text-sm font-bold mb-2" style={{ color: CL.purple }}>🎁 Pay with Gift Voucher</p>
@@ -461,6 +501,7 @@ function InvView({ inv, data }) {
     <div class="inv-meta"><span>\u0641\u0627\u062a\u0648\u0631\u0629 \u0631\u0642\u0645: ${inv.invoiceNo}</span><span>${apptDate}</span></div>
     <div class="section"><strong>\u0627\u0644\u0639\u0645\u064a\u0644:</strong> ${inv.customerName}<br/><strong>\u0627\u0644\u0647\u0627\u062a\u0641:</strong> ${stripCode(inv.customerPhone)}<br/><strong>\u0627\u0644\u0639\u0646\u0648\u0627\u0646:</strong> ${inv.customerAddress || ''}</div>
     <div class="section service"><strong>\u0627\u0644\u062e\u062f\u0645\u0629:</strong> ${inv.serviceNameAr || inv.serviceName}${serviceTiming ? ' (' + serviceTiming + ')' : ''}${apptTime ? '<br/><strong>\u0645\u0648\u0639\u062f \u0627\u0644\u062c\u0644\u0633\u0629:</strong> ' + apptDate + ' \u00b7 \u0627\u0644\u0633\u0627\u0639\u0629 ' + apptTime : ''}</div>
+    ${inv.packageBreakdown ? '<div class="section" style="background:#E8F8EE;border:1px solid #c3e6cb;border-radius:10px;padding:16px;margin-bottom:12px"><table style="width:100%;font-size:14px;border-collapse:collapse"><tr style="border-bottom:1px solid #c3e6cb"><td style="padding:6px 0">\u062c\u0644\u0633\u0629 1 - ' + inv.packageBreakdown.paidSessions + '</td><td style="text-align:left;padding:6px 0">' + inv.packageBreakdown.paidSessions + ' × ' + inv.packageBreakdown.perSession + ' \u062f.\u0643 = ' + (inv.packageBreakdown.paidSessions * inv.packageBreakdown.perSession) + ' \u062f.\u0643</td></tr><tr style="border-bottom:1px solid #c3e6cb"><td style="padding:6px 0;color:#1B7A3D;font-weight:700">\u0627\u0644\u062c\u0644\u0633\u0629 ' + inv.packageBreakdown.sessions + ' \ud83c\udf81</td><td style="text-align:left;padding:6px 0;color:#1B7A3D;font-weight:700">\u0645\u062c\u0627\u0646\u064a\u0629 (0 \u062f.\u0643)</td></tr><tr><td style="padding:8px 0;font-weight:700">\u0627\u0644\u0625\u062c\u0645\u0627\u0644\u064a</td><td style="text-align:left;padding:8px 0;font-weight:700">' + inv.amount + ' \u062f.\u0643 <span style="color:#1B7A3D;font-size:12px">(\u0648\u0641\u0631\u062a ' + inv.packageBreakdown.discount + ' \u062f.\u0643)</span></td></tr></table></div>' : ''}
     <div class="amount-box"><p class="label">\u0627\u0644\u0645\u0628\u0644\u063a \u0627\u0644\u0625\u062c\u0645\u0627\u0644\u064a</p><p class="value">${inv.amount} \u062f.\u0643</p><div><span class="status ${inv.paymentStatus === 'paid' ? 'paid' : 'unpaid'}">${inv.paymentStatus === 'paid' ? '\u2705 \u0645\u062f\u0641\u0648\u0639' : '\u274c \u063a\u064a\u0631 \u0645\u062f\u0641\u0648\u0639'}</span></div></div>
     ${s.spaPolicy ? '<div class="policy">' + s.spaPolicy.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>' : ''}
     ${s.salesPolicyAr ? '<div class="policy">' + s.salesPolicyAr.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>' : ''}
@@ -485,6 +526,7 @@ function InvView({ inv, data }) {
     <div className="flex justify-between text-sm inv-ar"><span className="font-bold">فاتورة رقم: {inv.invoiceNo}</span><span>{apptDate}</span></div>
     <div className="rounded-lg p-4 text-sm space-y-1 inv-ar" style={{ background: "#f9f9f7" }}><p><strong>العميل:</strong> {inv.customerName}</p><p><strong>الهاتف:</strong> {stripCode(inv.customerPhone)}</p><p><strong>العنوان:</strong> {inv.customerAddress}</p></div>
     <div className="rounded-lg p-4 text-sm space-y-1 inv-ar" style={{ background: CL.accentL }}><p><strong>الخدمة:</strong> {inv.serviceNameAr || inv.serviceName}{serviceTiming && <span style={{ color: CL.mid }}>{" "}({serviceTiming})</span>}</p>{apptTime && <p><strong>موعد الجلسة:</strong> {apptDate} · الساعة {apptTime}</p>}</div>
+    {inv.packageBreakdown && <div className="rounded-lg p-4 text-sm" style={{ background: "#E8F8EE", border: "1px solid #c3e6cb" }}><table style={{ width: "100%", fontSize: "14px", borderCollapse: "collapse" }}><tbody><tr style={{ borderBottom: "1px solid #c3e6cb" }}><td style={{ padding: "6px 0" }}>جلسة 1 - {inv.packageBreakdown.paidSessions}</td><td style={{ textAlign: "left", padding: "6px 0" }}>{inv.packageBreakdown.paidSessions} × {inv.packageBreakdown.perSession} د.ك = {inv.packageBreakdown.paidSessions * inv.packageBreakdown.perSession} د.ك</td></tr><tr style={{ borderBottom: "1px solid #c3e6cb" }}><td style={{ padding: "6px 0", color: "#1B7A3D", fontWeight: 700 }}>الجلسة {inv.packageBreakdown.sessions} 🎁</td><td style={{ textAlign: "left", padding: "6px 0", color: "#1B7A3D", fontWeight: 700 }}>مجانية (0 د.ك)</td></tr><tr><td style={{ padding: "8px 0", fontWeight: 700 }}>الإجمالي</td><td style={{ textAlign: "left", padding: "8px 0", fontWeight: 700 }}>{inv.amount} د.ك <span style={{ color: "#1B7A3D", fontSize: "12px" }}>(وفرت {inv.packageBreakdown.discount} د.ك)</span></td></tr></tbody></table></div>}
     <div className="text-center py-4 border-y inv-ar" style={{ borderColor: CL.bdr }}><p className="text-sm" style={{ color: CL.light }}>المبلغ الإجمالي</p><p className="text-3xl font-bold" style={{ color: CL.primary }}>{inv.amount} د.ك</p><div className="mt-2">{inv.paymentStatus === "paid" ? <Tag bg={CL.successBg} color={CL.success}>✅ مدفوع</Tag> : <Tag bg={CL.dangerBg} color={CL.danger}>❌ غير مدفوع</Tag>}</div></div>
     {s.spaPolicy && <div className="rounded-lg p-3 text-xs whitespace-pre-line inv-ar" style={{ background: "#f9f9f7", color: CL.light }}>{s.spaPolicy}</div>}
     {s.salesPolicyAr && <div className="rounded-lg p-3 text-xs whitespace-pre-line inv-ar" style={{ background: "#f9f9f7", color: CL.light }}>{s.salesPolicyAr}</div>}
@@ -518,9 +560,10 @@ function BookingModal({ open, onClose, data, save, addNotif, editA, defDate, use
   if (!open) return null;
   return (<Modal open={open} onClose={onClose} title={editA ? "Edit Booking" : "New Booking"} wide>
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Phone Search - First Section */}
+      <div className="md:col-span-2"><div className="rounded-xl p-4" style={{ background: CL.accentL, border: `1px solid ${CL.bdr}` }}><p className="text-xs font-bold mb-2" style={{ color: CL.primary }}>🔍 Search Customer by Phone</p><Inp label="" value={f.cp} onChange={v => { s("cp", v); const clean = v.replace(/\s/g,"").replace("+965",""); if(clean.length >= 4){ const match = data.customers.find(c => c.phone && c.phone.replace(/\s/g,"").replace("+965","") === clean); if(match){ s("cn", match.name || ""); s("cna", match.nameAr || ""); s("ca", match.address || ""); s("caa", match.addressAr || ""); s("pref", match.preferredStaffId || ""); sCS(""); sDD(false); }} }} prefix="+965" ph="Enter phone number to search..." />{f.cp && f.cp.replace(/\s/g,"").replace("+965","").length >= 4 && (()=>{ const clean = f.cp.replace(/\s/g,"").replace("+965",""); const match = data.customers.find(c => c.phone && c.phone.replace(/\s/g,"").replace("+965","") === clean); if(match){ const custAppts = data.appointments.filter(a => a.customerId === match.id && a.status !== "cancelled"); return <div className="mt-2 rounded-lg p-3" style={{ background: CL.successBg, border: `1px solid ${CL.success}22` }}><div className="flex items-center gap-2"><span className="font-bold text-sm" style={{ color: CL.success }}>✓ Customer found: {match.name}</span>{match.nameAr && <span className="text-xs" style={{ color: CL.mid }}>({match.nameAr})</span>}</div><div className="mt-1 text-xs" style={{ color: CL.mid }}>{match.address && <span>📍 {match.address} · </span>}{custAppts.length} booking(s)</div>{match.notes && <div className="mt-1 text-xs italic" style={{ color: CL.mid }}>📝 {match.notes}</div>}</div>; } return <div className="mt-2 text-xs p-2 rounded-lg" style={{ background: "#f5f5f5", color: CL.light }}>No customer found — new customer will be created</div>; })()}</div></div>
       <div className="md:col-span-2 relative"><Inp label="Customer Name (English)" value={f.cn} onChange={v => { s("cn", v); sCS(v); sDD(true); }} ph="Search or type..." />{dd && fc.length > 0 && <div className="absolute z-10 w-full bg-white border rounded-lg shadow-lg mt-1 max-h-40 overflow-auto" style={{ borderColor: CL.bdr }}>{fc.map(c => <button key={c.id} onClick={() => { s("cn", c.name); s("cna", c.nameAr || ""); s("cp", c.phone || ""); s("ca", c.address || ""); s("caa", c.addressAr || ""); s("pref", c.preferredStaffId || ""); sDD(false); }} className="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm border-b last:border-0"><span className="font-semibold">{c.name}</span> <span style={{ color: CL.light }}>· {fPhone(c.phone)}</span>{c.preferredStaffId && <span className="ml-2 text-xs" style={{ color: CL.purple }}>⭐ {data.staff.find(x => x.id === c.preferredStaffId)?.name}</span>}</button>)}</div>}</div>
       <Inp label="Customer Name (Arabic)" value={f.cna} onChange={v => s("cna", v)} dir="rtl" />
-      <Inp label="Phone" value={f.cp} onChange={v => s("cp", v)} prefix="+965" ph="66666666" />
       <Inp label="Address (English)" value={f.ca} onChange={v => s("ca", v)} />
       <Inp label="Address (Arabic)" value={f.caa} onChange={v => s("caa", v)} dir="rtl" />
       <Sel label="Service" value={f.serviceId} onChange={v => { const svc = data.services.find(x => x.id === v); if (svc) { s("serviceId", svc.id); s("serviceName", svc.name); s("cost", svc.price); s("duration", svc.duration || 60); } }} opts={[{ v: "", l: "Select service" }, ...data.services.map(x => ({ v: x.id, l: `${x.name} (${x.price} KD · ${x.duration || 60}m)` }))]} />
@@ -587,6 +630,17 @@ function Dashboard({ data, setPage, isO }) {
       <SC label="🔗 Link" val={`${linkT.toFixed(0)} KD`} bg={CL.infoBg} color={CL.info} onClick={() => detailList(linkA, "Link Payments Today")} />
       <SC label="🎁 Gift Voucher" val={`${vouchT.toFixed(0)} KD`} bg={CL.purpleBg} color={CL.purple} onClick={() => detailList(vouchA, "Voucher Payments Today")} />
     </div>}
+    {/* Packages Summary */}
+    {isO && (() => { const pkgs = (data.packages || []); const activePkgs = pkgs.filter(p => p.status === "active"); const totalPkgRev = pkgs.reduce((s, p) => s + (parseFloat(p.price) || 0), 0); const moPkgs = pkgs.filter(p => p.createdAt?.startsWith(mo)); const moPkgRev = moPkgs.reduce((s, p) => s + (parseFloat(p.price) || 0), 0); return activePkgs.length > 0 || pkgs.length > 0 ? <div className="rounded-xl p-5" style={{ background: CL.card, border: `1px solid ${CL.bdr}` }}>
+      <h3 className="font-bold text-lg mb-3" style={{ color: CL.primary }}>📦 Packages Overview</h3>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <SC label="Active Packages" val={activePkgs.length} bg="#E8F5E9" color="#2E7D32" />
+        <SC label="Total Packages" val={pkgs.length} bg={CL.infoBg} color={CL.info} />
+        <SC label="Monthly Revenue" val={`${moPkgRev.toFixed(0)} KD`} bg={CL.purpleBg} color={CL.purple} />
+        <SC label="Total Revenue" val={`${totalPkgRev.toFixed(0)} KD`} bg={CL.successBg} color={CL.success} />
+      </div>
+      {activePkgs.length > 0 && <div className="mt-3 space-y-2">{activePkgs.slice(0, 5).map(p => { const cust = data.customers.find(c => c.id === p.customerId); const rem = (p.sessions||[]).filter(s => !s.used).length + "/" + (p.sessions||[]).length; const perS = p.perSession || (p.type === "sessions25" ? 25 : 20); return <div key={p.id} className="flex items-center gap-3 p-2 rounded-lg" style={{ background: "#f9f9f7" }}><Tag bg="#E8F5E9" color="#2E7D32">📦 5×{perS} KD</Tag><span className="font-semibold text-sm">{cust?.name || "?"}</span><span className="text-xs" style={{ color: CL.light }}>{fPhone(cust?.phone)}</span><span className="ml-auto font-bold text-sm" style={{ color: CL.primary }}>Balance: {rem}</span></div>; })}</div>}
+    </div> : null; })()}
     {/* Sales Comparison Chart */}
     {isO && <div className="rounded-xl p-6" style={{ background: CL.card, border: `1px solid ${CL.bdr}` }}>
       <div className="flex items-center justify-between mb-5">
@@ -632,7 +686,7 @@ function Bookings({ data, save, addNotif, user }) {
 
 // ══════════════ CUSTOMERS ══════════════
 function Customers({ data, save, isO }) {
-  const [search, setSearch] = useState(""); const [editC, setEditC] = useState(null); const [histC, setHistC] = useState(null); const [showAdd, setShowAdd] = useState(false); const [delCust, setDelCust] = useState(null);
+  const [search, setSearch] = useState(""); const [editC, setEditC] = useState(null); const [histC, setHistC] = useState(null); const [showAdd, setShowAdd] = useState(false); const [delCust, setDelCust] = useState(null); const [viewC, setViewC] = useState(null);
   const [nf, sNF] = useState({ name: "", nameAr: "", phone: "", address: "", addressAr: "", preferredStaffId: "" });
   const [dupeWarn, setDupeWarn] = useState(null);
   const filtered = data.customers.filter(c => { const q = search.toLowerCase(); return (c.name || "").toLowerCase().includes(q) || (c.phone || "").includes(q) || (c.nameAr || "").includes(q); });
@@ -658,8 +712,8 @@ function Customers({ data, save, isO }) {
     {dupes.length > 0 && isO && <div className="rounded-xl p-4" style={{ background: CL.warnBg }}><p className="text-sm font-bold" style={{ color: CL.warn }}>⚠ {dupes.length} duplicate phone(s) found</p>{dupes.map(p => <div key={p} className="flex items-center gap-3 mt-2 flex-wrap"><span className="text-sm" style={{ color: CL.warn }}>{fPhone(p)}: {data.customers.filter(c => c.phone === p).map(c => c.name).join(", ")}</span><Btn sm c="accent" onClick={() => merge(p)}>Merge</Btn></div>)}</div>}
     <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name, phone..." className="w-full px-4 py-2.5 rounded-lg text-sm outline-none" style={{ border: `1.5px solid ${CL.bdr}`, background: "#fff" }} />
     <div className="rounded-xl overflow-hidden" style={{ background: CL.card, border: `1px solid ${CL.bdr}` }}><div className="overflow-x-auto"><table className="w-full text-sm">
-      <thead><tr style={{ background: "#f9f9f7" }}><th className="text-left px-4 py-3 text-xs font-bold uppercase" style={{ color: CL.light }}>Name</th><th className="text-left px-4 py-3 text-xs font-bold uppercase" style={{ color: CL.light }}>Phone</th><th className="text-left px-4 py-3 text-xs font-bold uppercase" style={{ color: CL.light }}>Preferred</th><th className="text-left px-4 py-3 text-xs font-bold uppercase" style={{ color: CL.light }}>Status</th><th className="text-left px-4 py-3 text-xs font-bold uppercase" style={{ color: CL.light }}>Actions</th></tr></thead>
-      <tbody>{filtered.map(c => <tr key={c.id} className="border-t" style={{ borderColor: CL.bdr }}><td className="px-4 py-3 font-semibold">{c.name}{c.nameAr && <span className="text-xs ml-2" style={{ color: CL.light }}>{c.nameAr}</span>}</td><td className="px-4 py-3" style={{ color: CL.mid }}>{fPhone(c.phone)}</td><td className="px-4 py-3">{c.preferredStaffId ? <Tag bg={CL.purpleBg} color={CL.purple}>⭐ {data.staff.find(s => s.id === c.preferredStaffId)?.name}</Tag> : "—"}</td><td className="px-4 py-3">{c.blocked ? <Tag bg={CL.dangerBg} color={CL.danger}>Blocked</Tag> : <Tag bg={CL.successBg} color={CL.success}>Active</Tag>}</td><td className="px-4 py-3"><div className="flex gap-1"><Btn sm c="ghost" onClick={() => setHistC(c)}>📋</Btn>{isO && <Btn sm c="ghost" onClick={() => setEditC({ ...c })}>✏️</Btn>}{isO && <Btn sm c="ghost" onClick={() => save({ ...data, customers: data.customers.map(x => x.id === c.id ? { ...x, blocked: !c.blocked } : x) })}>{c.blocked ? "✅" : "🚫"}</Btn>}{isO && <Btn sm c="dangerO" onClick={() => setDelCust(c)}>🗑</Btn>}</div></td></tr>)}</tbody>
+      <thead><tr style={{ background: "#f9f9f7" }}><th className="text-left px-4 py-3 text-xs font-bold uppercase" style={{ color: CL.light }}>Name</th><th className="text-left px-4 py-3 text-xs font-bold uppercase" style={{ color: CL.light }}>Phone</th><th className="text-center px-4 py-3 text-xs font-bold uppercase" style={{ color: CL.light }}>Bookings</th><th className="text-center px-4 py-3 text-xs font-bold uppercase" style={{ color: CL.light }}>Invoices</th><th className="text-left px-4 py-3 text-xs font-bold uppercase" style={{ color: CL.light }}>Preferred</th><th className="text-left px-4 py-3 text-xs font-bold uppercase" style={{ color: CL.light }}>Status</th><th className="text-left px-4 py-3 text-xs font-bold uppercase" style={{ color: CL.light }}>Actions</th></tr></thead>
+      <tbody>{filtered.map(c => { const cAppts = data.appointments.filter(a => a.customerId === c.id && a.status !== "cancelled"); const cInvs = data.invoices.filter(i => i.customerId === c.id); const activePkg = (data.packages || []).find(p => p.customerId === c.id && p.status === "active"); return <tr key={c.id} className="border-t" style={{ borderColor: CL.bdr }}><td className="px-4 py-3 font-semibold"><div className="flex items-center gap-1.5">{c.name}{c.nameAr && <span className="text-xs" style={{ color: CL.light }}>{c.nameAr}</span>}{activePkg && <button onClick={() => setViewC({...c, _showPkg: true})} className="cursor-pointer hover:opacity-80"><Tag bg="#E8F5E9" color="#2E7D32">📦 {(activePkg.sessions||[]).filter(s=>!s.used).length} ses ({activePkg.perSession || (activePkg.type === "sessions25" ? 25 : 20)} KD)</Tag></button>}</div></td><td className="px-4 py-3" style={{ color: CL.mid }}>{fPhone(c.phone)}</td><td className="px-4 py-3 text-center"><Tag bg={CL.infoBg} color={CL.info}>{cAppts.length}</Tag></td><td className="px-4 py-3 text-center"><Tag bg={CL.purpleBg} color={CL.purple}>{cInvs.length}</Tag></td><td className="px-4 py-3">{c.preferredStaffId ? <Tag bg={CL.purpleBg} color={CL.purple}>⭐ {data.staff.find(s => s.id === c.preferredStaffId)?.name}</Tag> : "—"}</td><td className="px-4 py-3">{c.blocked ? <Tag bg={CL.dangerBg} color={CL.danger}>Blocked</Tag> : <Tag bg={CL.successBg} color={CL.success}>Active</Tag>}</td><td className="px-4 py-3"><div className="flex gap-1"><Btn sm c="ghost" onClick={() => setViewC(c)}>👁</Btn><Btn sm c="ghost" onClick={() => setHistC(c)}>📋</Btn>{isO && <Btn sm c="ghost" onClick={() => setEditC({ ...c })}>✏️</Btn>}{isO && <Btn sm c="ghost" onClick={() => save({ ...data, customers: data.customers.map(x => x.id === c.id ? { ...x, blocked: !c.blocked } : x) })}>{c.blocked ? "✅" : "🚫"}</Btn>}{isO && <Btn sm c="dangerO" onClick={() => setDelCust(c)}>🗑</Btn>}</div></td></tr>; })}</tbody>
     </table></div></div>
     {/* ADD CUSTOMER with duplicate check */}
     <Modal open={showAdd} onClose={() => { setShowAdd(false); setDupeWarn(null); }} title="Add New Customer"><div className="space-y-3">
@@ -678,12 +732,25 @@ function Customers({ data, save, isO }) {
     </div></Modal>
     <Modal open={!!editC} onClose={() => setEditC(null)} title="Edit Customer">{editC && <div className="space-y-3"><Inp label="Name (EN)" value={editC.name} onChange={v => setEditC({ ...editC, name: v })} /><Inp label="Name (AR)" value={editC.nameAr} onChange={v => setEditC({ ...editC, nameAr: v })} dir="rtl" /><Inp label="Phone" value={editC.phone} onChange={v => setEditC({ ...editC, phone: v })} prefix="+965" /><Inp label="Address (EN)" value={editC.address} onChange={v => setEditC({ ...editC, address: v })} /><Inp label="Address (AR)" value={editC.addressAr} onChange={v => setEditC({ ...editC, addressAr: v })} dir="rtl" /><Sel label="Preferred Staff" value={editC.preferredStaffId || ""} onChange={v => setEditC({ ...editC, preferredStaffId: v })} opts={[{ v: "", l: "None" }, ...data.staff.map(x => ({ v: x.id, l: x.name }))]} /><Btn onClick={() => { save({ ...data, customers: data.customers.map(c => c.id === editC.id ? editC : c) }); setEditC(null); }} className="w-full">Save</Btn></div>}</Modal>
     <Modal open={!!histC} onClose={() => setHistC(null)} title={`History: ${histC?.name}`} wide>{histC && <HistoryView data={data} customerId={histC.id} />}</Modal>
+    {/* Customer View Details Modal */}
+    <Modal open={!!viewC} onClose={() => setViewC(null)} title={`Customer Details`} wide>{viewC && (() => { const cAppts = data.appointments.filter(a => a.customerId === viewC.id).sort((a,b) => b.date.localeCompare(a.date)); const cInvs = data.invoices.filter(i => i.customerId === viewC.id); const totalSpent = cAppts.filter(a => a.paymentStatus === "paid").reduce((s,a) => s + (parseFloat(a.cost)||0), 0); const lastVisit = cAppts.length > 0 ? cAppts[0].date : null; return <div className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="rounded-xl p-4" style={{ background: "#f9f9f7", border: `1px solid ${CL.bdr}` }}><p className="text-xs font-bold uppercase mb-2" style={{ color: CL.light }}>Customer Info</p><p className="font-bold text-lg">{viewC.name}</p>{viewC.nameAr && <p className="text-sm" style={{ color: CL.mid }} dir="rtl">{viewC.nameAr}</p>}<p className="text-sm mt-2" style={{ color: CL.mid }}>📞 {fPhone(viewC.phone)}</p>{viewC.address && <p className="text-sm" style={{ color: CL.mid }}>📍 {viewC.address}</p>}{viewC.addressAr && <p className="text-sm" style={{ color: CL.mid }} dir="rtl">📍 {viewC.addressAr}</p>}{viewC.preferredStaffId && <p className="text-sm mt-1" style={{ color: CL.purple }}>⭐ Preferred: {data.staff.find(s=>s.id===viewC.preferredStaffId)?.name}</p>}<p className="text-xs mt-2" style={{ color: CL.light }}>Created: {viewC.createdAt ? new Date(viewC.createdAt).toLocaleDateString() : "N/A"}</p><Tag bg={viewC.blocked ? CL.dangerBg : CL.successBg} color={viewC.blocked ? CL.danger : CL.success}>{viewC.blocked ? "Blocked" : "Active"}</Tag></div>
+        <div className="space-y-2"><div className="rounded-xl p-4 text-center" style={{ background: CL.successBg }}><p className="text-xs font-bold uppercase" style={{ color: CL.success }}>Total Spent</p><p className="text-2xl font-bold" style={{ color: CL.success }}>{totalSpent.toFixed(0)} KD</p></div><div className="grid grid-cols-2 gap-2"><div className="rounded-xl p-3 text-center" style={{ background: CL.infoBg }}><p className="text-xs font-bold" style={{ color: CL.info }}>Bookings</p><p className="text-xl font-bold" style={{ color: CL.info }}>{cAppts.length}</p></div><div className="rounded-xl p-3 text-center" style={{ background: CL.purpleBg }}><p className="text-xs font-bold" style={{ color: CL.purple }}>Invoices</p><p className="text-xl font-bold" style={{ color: CL.purple }}>{cInvs.length}</p></div></div>{lastVisit && <div className="rounded-xl p-3 text-center" style={{ background: CL.accentL }}><p className="text-xs font-bold" style={{ color: CL.primary }}>Last Visit</p><p className="text-sm font-bold" style={{ color: CL.primary }}>{fD(lastVisit)}</p></div>}</div>
+      </div>
+      <div><p className="text-sm font-bold mb-2" style={{ color: CL.primary }}>Booking History</p>{cAppts.length === 0 ? <p className="text-sm" style={{ color: CL.light }}>No bookings yet</p> : <div className="space-y-2 max-h-60 overflow-auto">{cAppts.map(a => { const st = data.staff.find(s => s.id === a.staffId); const inv = cInvs.find(i => i.appointmentId === a.id); return <div key={a.id} className="rounded-lg p-3 flex items-center gap-3" style={{ background: "#f9f9f7", border: `1px solid ${CL.bdr}` }}><div className="w-16 text-center shrink-0"><span className="font-bold text-xs">{fD(a.date)}</span><br/><span className="text-xs" style={{ color: CL.light }}>{a.time}</span></div><div className="flex-1 min-w-0"><p className="font-medium text-sm">{a.serviceName}</p><p className="text-xs" style={{ color: CL.light }}>{st?.name || "N/A"}</p></div><Tag bg={a.status === "cancelled" ? CL.dangerBg : a.status === "completed" ? CL.successBg : CL.infoBg} color={a.status === "cancelled" ? CL.danger : a.status === "completed" ? CL.success : CL.info}>{a.status}</Tag><Tag bg={a.paymentStatus === "paid" ? CL.successBg : CL.dangerBg} color={a.paymentStatus === "paid" ? CL.success : CL.danger}>{a.paymentStatus === "paid" ? `Paid` : "Unpaid"}</Tag><span className="font-bold text-sm shrink-0">{a.cost} KD</span>{inv && <span className="text-xs font-mono" style={{ color: CL.primary }}>🧾{inv.invoiceNo}</span>}</div>; })}</div>}
+      </div>
+      <div className="flex justify-end gap-2"><Btn c="ghost" onClick={() => { setViewC(null); setHistC(viewC); }}>📋 Full History</Btn><Btn c="ghost" onClick={() => { setViewC(null); setEditC({...viewC}); }}>✏️ Edit</Btn></div>
+    </div>; })()}</Modal>
+    {/* Delete Confirmation Modal */}
+    <Modal open={!!delCust} onClose={() => setDelCust(null)} title="⚠️ Confirm Delete">{delCust && <div className="space-y-4"><div className="rounded-xl p-4 text-center" style={{ background: CL.dangerBg }}><p className="text-3xl mb-2">⚠️</p><p className="font-bold text-lg" style={{ color: CL.danger }}>Delete Customer?</p></div><p className="text-sm text-center" style={{ color: CL.mid }}>Are you sure you want to permanently delete <strong>{delCust.name}</strong>?<br/>This action cannot be undone. Existing appointments and invoices will be kept.</p><div className="flex justify-end gap-3"><Btn c="ghost" onClick={() => setDelCust(null)}>Cancel</Btn><Btn c="danger" onClick={() => deleteCust(delCust.id)}>Yes, Delete Permanently</Btn></div></div>}</Modal>
   </div>);
 }
 
 // ── CUSTOMER HISTORY VIEW ──
 function HistoryView({ data, customerId }) {
-  const [viewInv, setViewInv] = useState(null);
+  const [viewInv, setViewInv] = useState(null); const [viewPkgInv, setViewPkgInv] = useState(null);
+  const custPkgs = (data.packages || []).filter(p => p.customerId === customerId);
   const appts = data.appointments.filter(a => a.customerId === customerId).sort((a, b) => b.date.localeCompare(a.date));
   const totSpent = appts.filter(a => a.paymentStatus === "paid").reduce((s, a) => s + (parseFloat(a.cost) || 0), 0);
   const cashTotal = appts.filter(a => a.paymentStatus === "paid" && a.paymentMethod === "cash").reduce((s, a) => s + (parseFloat(a.cost) || 0), 0);
@@ -699,11 +766,14 @@ function HistoryView({ data, customerId }) {
       <div className="rounded-lg p-3 text-center" style={{ background: CL.purpleBg }}><p className="text-[10px] font-bold uppercase" style={{ color: CL.purple }}>🎁 Voucher</p><p className="text-lg font-bold" style={{ color: CL.purple }}>{vouchTotal.toFixed(0)} KD</p></div>
       <div className="rounded-lg p-3 text-center" style={{ background: unpaidTotal > 0 ? CL.dangerBg : "#f5f5f5" }}><p className="text-[10px] font-bold uppercase" style={{ color: unpaidTotal > 0 ? CL.danger : CL.light }}>⏳ Unpaid</p><p className="text-lg font-bold" style={{ color: unpaidTotal > 0 ? CL.danger : CL.light }}>{unpaidTotal.toFixed(0)} KD</p></div>
     </div>
+    {/* Customer Packages */}
+    {custPkgs.length > 0 && <div><p className="text-xs font-bold mb-2" style={{ color: CL.primary }}>📦 Packages</p><div className="space-y-2">{custPkgs.map(p => { const rem = (p.sessions||[]).filter(s=>!s.used).length; const tot = (p.sessions||[]).length; const perS = p.perSession || (p.type === "sessions25" ? 25 : 20); return <div key={p.id} className="flex items-center gap-2 p-2 rounded-lg" style={{ background: p.status === "active" ? "#E8F5E9" : "#f5f5f5", border: `1px solid ${p.status === "active" ? "#2E7D3233" : CL.bdr}` }}><Tag bg={p.status === "active" ? "#E8F5E9" : CL.infoBg} color={p.status === "active" ? "#2E7D32" : CL.info}>{p.status}</Tag><span className="text-sm font-bold">5×{perS} KD</span><span className="font-mono text-xs" style={{ color: CL.light }}>{p.code}</span><span className="text-xs" style={{ color: CL.mid }}>{rem}/{tot} left</span>{p.invoiceNo && <button onClick={() => { const inv = data.invoices.find(i => i.id === p.invoiceId); if(inv) setViewPkgInv(inv); }} className="text-xs font-bold cursor-pointer hover:underline" style={{ color: CL.primary }}>🧾 {p.invoiceNo}</button>}<span className="ml-auto font-bold text-sm">{p.price} KD</span></div>; })}</div></div>}
+    {viewPkgInv && <Modal open={!!viewPkgInv} onClose={() => setViewPkgInv(null)} title={`🧾 ${viewPkgInv.invoiceNo}`}><InvView inv={viewPkgInv} data={data} /></Modal>}
     <p className="text-xs font-bold" style={{ color: CL.light }}>{appts.length} appointments</p>
     {/* Appointment list */}
     <div className="space-y-2 max-h-80 overflow-auto">{appts.map(a => {
       const st = data.staff.find(s => s.id === a.staffId); const inv = data.invoices.find(i => i.appointmentId === a.id);
-      const payLabel = a.paymentStatus === "paid" ? (a.paymentMethod === "cash" ? "💵 Cash" : a.paymentMethod === "link" ? "🔗 Link" : a.paymentMethod === "voucher" ? "🎁 Voucher" : "Paid") : "Unpaid";
+      const payLabel = a.paymentStatus === "paid" ? (a.paymentMethod === "cash" ? "💵 Cash" : a.paymentMethod === "link" ? "🔗 Link" : a.paymentMethod === "voucher" ? "🎁 Voucher" : a.paymentMethod === "package" ? "📦 Package" : "Paid") : "Unpaid";
       const payBg = a.paymentStatus === "paid" ? (a.paymentMethod === "voucher" ? CL.purpleBg : a.paymentMethod === "link" ? CL.infoBg : CL.successBg) : CL.dangerBg;
       const payColor = a.paymentStatus === "paid" ? (a.paymentMethod === "voucher" ? CL.purple : a.paymentMethod === "link" ? CL.info : CL.success) : CL.danger;
       return <div key={a.id} className="rounded-lg p-3" style={{ background: "#f9f9f7", border: `1px solid ${CL.bdr}` }}>
@@ -735,7 +805,255 @@ function HistoryView({ data, customerId }) {
       </div>;
     })}</div>
     <Modal open={!!viewInv} onClose={() => setViewInv(null)} title={`فاتورة ${viewInv?.invoiceNo}`}>{viewInv && <InvView inv={viewInv} data={data} />}</Modal>
-    <Modal open={!!delCust} onClose={() => setDelCust(null)} title="Delete Customer">{delCust && <div className="space-y-4"><p className="text-sm" style={{ color: CL.mid }}>Delete <strong>{delCust.name}</strong>? Appointments and invoices will be kept.</p><div className="flex justify-end gap-3"><Btn c="ghost" onClick={() => setDelCust(null)}>Cancel</Btn><Btn c="danger" onClick={() => deleteCust(delCust.id)}>Yes, Delete</Btn></div></div>}</Modal>
+  </div>);
+}
+
+// ══════════════ PACKAGES ══════════════
+function Packages({ data, save, user }) {
+  const [search, setSearch] = useState(""); const [showNew, setShowNew] = useState(false); const [viewPkg, setViewPkg] = useState(null);
+  const [tab, setTab] = useState("all"); const [delPkg, setDelPkg] = useState(null);  const [nf, sNF] = useState({ type: "sessions20", customerId: "", cp: "", cn: "" });
+  const [custMatch, setCustMatch] = useState(null);
+  const [showNewCust, setShowNewCust] = useState(false);
+  const [newCust, setNewCust] = useState({ name: "", nameAr: "", phone: "", address: "", addressAr: "" });
+
+  const PKG_TYPES = {
+    sessions20: { name: "5 Sessions (20 KD)", price: 80, sessions: 5, perSession: 20, desc: "5 sessions × 20 KD — valid for 20 KD services only" },
+    sessions25: { name: "5 Sessions (25 KD)", price: 100, sessions: 5, perSession: 25, desc: "5 sessions × 25 KD — valid for 25 KD services only" }
+  };
+
+  const pkgs = (data.packages || []).filter(p => {
+    if (tab === "active" && p.status !== "active") return false;
+    if (tab === "consumed" && p.status !== "consumed") return false;
+    if (tab === "expired" && p.status !== "expired") return false;
+    if (search) { const q = search.toLowerCase(); const cust = data.customers.find(c => c.id === p.customerId); return (cust?.name || "").toLowerCase().includes(q) || (cust?.phone || "").includes(q) || (p.code || "").toLowerCase().includes(q); }
+    return true;
+  }).sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+
+  const searchPhone = (v) => {
+    sNF({ ...nf, cp: v });
+    const clean = v.replace(/\s/g, "").replace("+965", "");
+    if (clean.length >= 4) {
+      const match = data.customers.find(c => c.phone && c.phone.replace(/\s/g, "").replace("+965", "") === clean);
+      if (match) { setCustMatch(match); sNF({ ...nf, cp: v, customerId: match.id, cn: match.name }); } else { setCustMatch(null); sNF({ ...nf, cp: v, customerId: "", cn: "" }); }
+    } else { setCustMatch(null); }
+  };
+
+  const createPkg = () => {
+    if (!nf.customerId) return;
+    const t = PKG_TYPES[nf.type];
+    const cust = data.customers.find(c => c.id === nf.customerId);
+    const invId = uid();
+    const invNo = iN(data.invoiceCounter);
+    const pkg = {
+      id: uid(), code: pkgCode(), type: nf.type, customerId: nf.customerId,
+      price: t.price, perSession: t.perSession, status: "active",
+      sessions: Array.from({ length: t.sessions }, () => ({ id: uid(), code: sesCode(), used: false, usedDate: null, appointmentId: null })),
+      invoiceId: invId, invoiceNo: invNo,
+      createdBy: user?.name || "", createdAt: new Date().toISOString()
+    };
+    const inv = {
+      id: invId, invoiceNo: invNo, appointmentId: null, packageId: pkg.id,
+      customerId: nf.customerId, customerName: cust?.nameAr || cust?.name || "",
+      customerNameEn: cust?.name || "", customerPhone: fPhone(cust?.phone),
+      customerAddress: cust?.addressAr || cust?.address || "",
+      serviceName: t.name, serviceNameAr: nf.type === "sessions25" ? "باقة 5 جلسات (25 د.ك)" : "باقة 5 جلسات (20 د.ك)",
+      packageBreakdown: { sessions: t.sessions, perSession: t.perSession, paidSessions: t.sessions - 1, freeSessions: 1, totalValue: t.sessions * t.perSession, discount: (t.sessions * t.perSession) - t.price },
+      staffName: "", amount: t.price, date: TD(),
+      paymentStatus: "paid", paymentMethod: "cash",
+      createdAt: new Date().toISOString()
+    };
+    save({ ...data, packages: [...(data.packages || []), pkg], invoices: [...data.invoices, inv], invoiceCounter: data.invoiceCounter + 1 });
+    sNF({ type: "sessions20", customerId: "", cp: "", cn: "" }); setCustMatch(null); setShowNew(false); setShowNewCust(false);
+  };
+
+  const restoreSession = (pkgId, sesId) => {
+    save({ ...data, packages: (data.packages || []).map(p => {
+      if (p.id !== pkgId) return p;
+      const up = { ...p, sessions: p.sessions.map(s => s.id === sesId ? { ...s, used: false, usedDate: null, appointmentId: null, cancelled: false } : s), status: "active" };
+      return up;
+    })});
+  };
+
+  const [copiedCode, setCopiedCode] = useState(null);
+  const copyCode = (code) => { try { const ta = document.createElement("textarea"); ta.value = code; ta.style.position = "fixed"; ta.style.opacity = "0"; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); document.body.removeChild(ta); setCopiedCode(code); setTimeout(() => setCopiedCode(null), 2000); } catch(e) { prompt("Copy this code:", code); } };
+
+  const addNewCustomer = () => {
+    if (!newCust.name || !newCust.phone) return;
+    const c = { id: uid(), name: newCust.name, nameAr: newCust.nameAr, phone: newCust.phone, address: newCust.address, addressAr: newCust.addressAr, preferredStaffId: "", blocked: false, createdAt: new Date().toISOString() };
+    const upd = { ...data, customers: [...data.customers, c] };
+    save(upd);
+    sNF({ ...nf, customerId: c.id, cn: c.name, cp: c.phone });
+    setCustMatch(c);
+    setShowNewCust(false);
+    setNewCust({ name: "", nameAr: "", phone: "", address: "", addressAr: "" });
+  };
+
+  const deletePkg = (pId) => { save({ ...data, packages: (data.packages || []).filter(p => p.id !== pId) }); setDelPkg(null); };
+
+  return (<div className="space-y-5">
+    <div className="flex items-center justify-between flex-wrap gap-3">
+      <h2 className="text-2xl font-bold" style={{ color: CL.primary, fontFamily: "'Playfair Display',serif" }}>📦 Packages</h2>
+      <Btn onClick={() => { sNF({ type: "sessions20", customerId: "", cp: "", cn: "" }); setCustMatch(null); setShowNew(true); }}>+ New Package</Btn>
+    </div>
+    <div className="flex gap-2 flex-wrap">{["all", "active", "consumed", "expired"].map(t => <Btn key={t} sm c={tab === t ? "primary" : "ghost"} onClick={() => setTab(t)}>{t.charAt(0).toUpperCase() + t.slice(1)}</Btn>)}</div>
+    <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name, phone, package code..." className="w-full px-4 py-2.5 rounded-lg text-sm outline-none" style={{ border: `1.5px solid ${CL.bdr}`, background: "#fff" }} />
+
+    {/* Stats */}
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <SC label="Active" val={(data.packages || []).filter(p => p.status === "active").length} bg="#E8F5E9" color="#2E7D32" />
+      <SC label="Consumed" val={(data.packages || []).filter(p => p.status === "consumed").length} bg={CL.infoBg} color={CL.info} />
+      <SC label="Total Revenue" val={`${(data.packages || []).reduce((s, p) => s + (parseFloat(p.price) || 0), 0).toFixed(0)} KD`} bg={CL.successBg} color={CL.success} />
+      <SC label="Total Packages" val={(data.packages || []).length} bg={CL.purpleBg} color={CL.purple} />
+    </div>
+
+    {/* Package Cards */}
+    <div className="space-y-3">{pkgs.map(p => {
+      const cust = data.customers.find(c => c.id === p.customerId);
+      const t = PKG_TYPES[p.type] || PKG_TYPES.sessions20;
+      const remaining = (p.sessions || []).filter(s => !s.used).length;
+      const total = (p.sessions || []).length;
+      const pct = total > 0 ? ((total - remaining) / total) * 100 : 0;
+      const statusColor = p.status === "active" ? CL.success : p.status === "consumed" ? CL.info : CL.light;
+      const statusBg = p.status === "active" ? CL.successBg : p.status === "consumed" ? CL.infoBg : "#f5f5f5";
+
+      return <div key={p.id} className="rounded-xl overflow-hidden" style={{ background: CL.card, border: `1px solid ${CL.bdr}` }}>
+        <div className="p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-lg font-bold">{cust?.name || "?"}</span>
+                {cust?.nameAr && <span className="text-sm" style={{ color: CL.light }}>{cust.nameAr}</span>}
+                <Tag bg={statusBg} color={statusColor}>{p.status.toUpperCase()}</Tag>
+              </div>
+              <p className="text-sm mt-1" style={{ color: CL.mid }}>📞 {fPhone(cust?.phone)} {cust?.address ? `· 📍 ${cust.address}` : ""}</p>
+              <div className="flex items-center gap-2 mt-2">
+                <Tag bg="#E8F5E9" color="#2E7D32">📦 {(PKG_TYPES[p.type] || PKG_TYPES.sessions20).name}</Tag>
+                <span className="text-xs font-mono" style={{ color: CL.primary }}>{p.code}</span>
+              </div>
+            </div>
+            <div className="text-right shrink-0">
+              <p className="text-2xl font-bold" style={{ color: CL.primary }}>{p.price} KD</p>
+              <p className="text-xs" style={{ color: CL.light }}>Paid</p>
+            </div>
+          </div>
+          {/* Progress Bar */}
+          <div className="mt-3">
+            <div className="flex justify-between text-xs mb-1"><span style={{ color: CL.mid }}>Balance: <strong>{remaining}/{total} sessions</strong> ({p.perSession || (PKG_TYPES[p.type] || PKG_TYPES.sessions20).perSession} KD each)</span><span style={{ color: CL.light }}>{pct.toFixed(0)}% used</span></div>
+            <div className="w-full h-3 rounded-full" style={{ background: "#f0f0f0" }}><div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: pct >= 100 ? CL.info : pct >= 75 ? CL.warn : CL.success }} /></div>
+          </div>
+        </div>
+        {/* Session Codes or Hour Logs */}
+        {(p.sessions || []).length > 0 && <div className="px-4 pb-3">
+          <p className="text-xs font-bold mb-2" style={{ color: CL.light }}>SESSION CODES ({p.perSession || (PKG_TYPES[p.type] || PKG_TYPES.sessions20).perSession} KD per session)</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">{p.sessions.map((s, i) => {
+            return <div key={s.id} className="flex items-center gap-2 p-2 rounded-lg" style={{ background: s.used ? "#f5f5f5" : CL.successBg, border: `1px solid ${s.used ? CL.bdr : CL.success}33` }}>
+              <span className="font-mono text-xs font-bold" style={{ color: s.used ? CL.light : CL.success }}>{s.code}</span>
+              <span className="text-xs" style={{ color: CL.light }}>#{i + 1}</span>
+              {s.used ? <span className="ml-auto text-xs" style={{ color: CL.light }}>✓ {s.usedDate}</span> : <button onClick={() => copyCode(s.code)} className="ml-auto flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold cursor-pointer hover:opacity-80" style={{ background: copiedCode === s.code ? CL.successBg : "#fff", color: copiedCode === s.code ? CL.success : CL.mid, border: `1px solid ${CL.bdr}` }}>{copiedCode === s.code ? "✓ Copied!" : "📋 Copy"}</button>}
+            </div>;
+          })}</div>
+        </div>}
+        <div className="px-4 pb-3 flex gap-2 flex-wrap border-t pt-3" style={{ borderColor: CL.bdr }}>
+          <Btn sm c="ghost" onClick={() => setViewPkg(p)}>👁 Details</Btn>
+          {p.invoiceNo && <Btn sm c="ghost" onClick={() => { const inv = data.invoices.find(i => i.id === p.invoiceId); if (inv) setViewPkg({ ...p, _showInv: inv }); }}>🧾 {p.invoiceNo}</Btn>}
+          <Btn sm c="dangerO" onClick={() => setDelPkg(p)}>🗑 Delete</Btn>
+        </div>
+      </div>;
+    })}</div>
+    {pkgs.length === 0 && <p className="text-center py-10" style={{ color: CL.light }}>No packages found</p>}
+
+    {/* NEW PACKAGE MODAL */}
+    <Modal open={showNew} onClose={() => setShowNew(false)} title="📦 Create New Package"><div className="space-y-4">
+      {/* Phone Search */}
+      <div className="rounded-xl p-4" style={{ background: CL.accentL, border: `1px solid ${CL.bdr}` }}>
+        <p className="text-xs font-bold mb-2" style={{ color: CL.primary }}>🔍 Search Customer by Phone</p>
+        <Inp label="" value={nf.cp} onChange={searchPhone} prefix="+965" ph="Enter phone number..." />
+        {custMatch && <div className="mt-2 p-2 rounded-lg" style={{ background: CL.successBg }}><span className="text-sm font-bold" style={{ color: CL.success }}>✓ {custMatch.name}</span>{custMatch.nameAr && <span className="text-xs ml-2" style={{ color: CL.mid }}>({custMatch.nameAr})</span>}<p className="text-xs mt-0.5" style={{ color: CL.mid }}>{custMatch.address && `📍 ${custMatch.address} · `}{data.appointments.filter(a => a.customerId === custMatch.id).length} bookings</p></div>}
+        {nf.cp && nf.cp.replace(/\s/g, "").replace("+965", "").length >= 4 && !custMatch && <div className="mt-2 p-2 rounded-lg text-xs" style={{ background: CL.warnBg }}>
+          <span style={{ color: CL.warn }}>⚠ No customer found</span>
+          <Btn sm c="accent" onClick={() => { setShowNewCust(true); setNewCust({ name: "", nameAr: "", phone: nf.cp, address: "", addressAr: "" }); }} className="ml-2">+ Create New Customer</Btn>
+        </div>}
+      </div>
+      {/* New Customer Inline Form */}
+      {showNewCust && <div className="rounded-xl p-4 space-y-3" style={{ background: CL.accentL, border: `1px solid ${CL.accent}` }}>
+        <p className="text-xs font-bold" style={{ color: CL.primary }}>New Customer</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Inp label="Name (EN) *" value={newCust.name} onChange={v => setNewCust({...newCust, name: v})} />
+          <Inp label="Name (AR)" value={newCust.nameAr} onChange={v => setNewCust({...newCust, nameAr: v})} dir="rtl" />
+          <Inp label="Phone *" value={newCust.phone} onChange={v => setNewCust({...newCust, phone: v})} prefix="+965" />
+          <Inp label="Address (EN)" value={newCust.address} onChange={v => setNewCust({...newCust, address: v})} />
+          <Inp label="Address (AR)" value={newCust.addressAr} onChange={v => setNewCust({...newCust, addressAr: v})} dir="rtl" />
+        </div>
+        <div className="flex gap-2"><Btn sm onClick={addNewCustomer}>✓ Add Customer</Btn><Btn sm c="ghost" onClick={() => setShowNewCust(false)}>Cancel</Btn></div>
+      </div>}
+      {/* Package Type */}
+      <div><p className="text-xs font-bold mb-2" style={{ color: CL.light }}>SELECT PACKAGE TYPE</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <button onClick={() => sNF({ ...nf, type: "sessions20" })} className="rounded-xl p-4 text-left transition-all" style={{ background: nf.type === "sessions20" ? "#E8F5E9" : "#f9f9f7", border: nf.type === "sessions20" ? `2px solid #2E7D32` : `1px solid ${CL.bdr}` }}>
+            <p className="font-bold text-lg" style={{ color: nf.type === "sessions20" ? "#2E7D32" : CL.text }}>5 Sessions × 20 KD</p>
+            <p className="text-sm mt-1" style={{ color: CL.mid }}>Valid for 20 KD services only</p>
+            <p className="text-xl font-bold mt-2" style={{ color: nf.type === "sessions20" ? "#2E7D32" : CL.primary }}>80 KD</p>
+          </button>
+          <button onClick={() => sNF({ ...nf, type: "sessions25" })} className="rounded-xl p-4 text-left transition-all" style={{ background: nf.type === "sessions25" ? "#E8F5E9" : "#f9f9f7", border: nf.type === "sessions25" ? `2px solid #2E7D32` : `1px solid ${CL.bdr}` }}>
+            <p className="font-bold text-lg" style={{ color: nf.type === "sessions25" ? "#2E7D32" : CL.text }}>5 Sessions × 25 KD</p>
+            <p className="text-sm mt-1" style={{ color: CL.mid }}>Valid for 25 KD services only</p>
+            <p className="text-xl font-bold mt-2" style={{ color: nf.type === "sessions25" ? "#2E7D32" : CL.primary }}>100 KD</p>
+          </button>
+        </div>
+      </div>
+      {/* Summary */}
+      {nf.customerId && <div className="rounded-xl p-4" style={{ background: "#f9f9f7", border: `1px solid ${CL.bdr}` }}>
+        <p className="text-xs font-bold mb-1" style={{ color: CL.light }}>SUMMARY</p>
+        <p className="text-sm"><strong>Customer:</strong> {custMatch?.name || nf.cn} ({fPhone(nf.cp)})</p>
+        <p className="text-sm"><strong>Package:</strong> {PKG_TYPES[nf.type].name}</p>
+        <p className="text-sm"><strong>Price:</strong> {PKG_TYPES[nf.type].price} KD (Paid)</p>
+        <p className="text-sm"><strong>Valid for:</strong> {PKG_TYPES[nf.type].perSession} KD services only</p>
+        <p className="text-sm"><strong>Includes:</strong> {PKG_TYPES[nf.type].desc}</p>
+      </div>}
+      <Btn onClick={createPkg} className="w-full" disabled={!nf.customerId}>Create Package</Btn>
+    </div></Modal>
+
+    {/* VIEW PACKAGE DETAIL */}
+    <Modal open={!!viewPkg} onClose={() => setViewPkg(null)} title={`📦 Package Details`} wide>{viewPkg && (() => {
+      const cust = data.customers.find(c => c.id === viewPkg.customerId);
+      const remaining = (viewPkg.sessions || []).filter(s => !s.used).length;
+      const total = (viewPkg.sessions || []).length;
+      return <div className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="rounded-xl p-4" style={{ background: "#f9f9f7" }}>
+            <p className="text-xs font-bold uppercase mb-2" style={{ color: CL.light }}>Customer</p>
+            <p className="font-bold text-lg">{cust?.name}</p>{cust?.nameAr && <p className="text-sm" dir="rtl" style={{ color: CL.mid }}>{cust.nameAr}</p>}
+            <p className="text-sm mt-1" style={{ color: CL.mid }}>📞 {fPhone(cust?.phone)}</p>
+            {cust?.address && <p className="text-sm" style={{ color: CL.mid }}>📍 {cust.address}</p>}
+          </div>
+          <div className="rounded-xl p-4" style={{ background: "#E8F5E9" }}>
+            <p className="text-xs font-bold uppercase mb-2" style={{ color: "#2E7D32" }}>Package Info</p>
+            <p className="font-bold">{(PKG_TYPES[viewPkg.type] || PKG_TYPES.sessions20).name}</p>
+            <p className="text-sm mt-1" style={{ color: CL.mid }}>Code: <strong className="font-mono">{viewPkg.code}</strong></p>
+            <p className="text-sm" style={{ color: CL.mid }}>Paid: <strong>{viewPkg.price} KD</strong></p>
+            <p className="text-sm" style={{ color: CL.mid }}>Balance: <strong>{remaining}/{total} sessions</strong></p>
+            <p className="text-sm" style={{ color: CL.mid }}>Valid for: <strong>{viewPkg.perSession || (PKG_TYPES[viewPkg.type] || PKG_TYPES.sessions20).perSession} KD services</strong></p>
+            <p className="text-sm" style={{ color: CL.mid }}>Created: {viewPkg.createdAt ? fD(viewPkg.createdAt.slice(0, 10)) : "N/A"} by {viewPkg.createdBy}</p>
+            <Tag bg={viewPkg.status === "active" ? CL.successBg : CL.infoBg} color={viewPkg.status === "active" ? CL.success : CL.info}>{viewPkg.status.toUpperCase()}</Tag>
+            {viewPkg.invoiceNo && <p className="text-sm mt-1" style={{ color: CL.primary }}>🧾 Invoice: <strong>{viewPkg.invoiceNo}</strong></p>}
+          </div>
+        </div>
+        {/* Invoice View */}
+        {viewPkg._showInv && <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${CL.bdr}` }}><div className="px-4 py-2 flex items-center justify-between" style={{ background: "#f9f9f7" }}><span className="text-sm font-bold" style={{ color: CL.primary }}>🧾 {viewPkg._showInv.invoiceNo}</span><Btn sm c="ghost" onClick={() => setViewPkg({...viewPkg, _showInv: null})}>✕ Close</Btn></div><div className="p-4"><InvView inv={viewPkg._showInv} data={data} /></div></div>}
+        {viewPkg.invoiceNo && !viewPkg._showInv && <Btn sm c="ghost" onClick={() => { const inv = data.invoices.find(i => i.id === viewPkg.invoiceId); if(inv) setViewPkg({...viewPkg, _showInv: inv}); }}>🧾 View Invoice</Btn>}
+        {(viewPkg.sessions || []).length > 0 && <div>
+          <p className="text-sm font-bold mb-2" style={{ color: CL.primary }}>Session Codes</p>
+          <div className="space-y-2">{viewPkg.sessions.map((s, i) => { return <div key={s.id} className="flex items-center gap-3 p-2 rounded-lg" style={{ background: s.used ? "#f5f5f5" : CL.successBg }}>
+            <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold" style={{ background: s.used ? CL.bdr : CL.success, color: "#fff" }}>{i + 1}</span>
+            <span className="font-mono text-sm font-bold" style={{ color: s.used ? CL.light : CL.success }}>{s.code}</span>
+            {s.used ? <span className="ml-auto text-xs" style={{ color: CL.light }}>✓ Used on {fD(s.usedDate)}</span> : <div className="ml-auto flex items-center gap-2"><span className="text-xs font-bold" style={{ color: CL.success }}>Available ({viewPkg.perSession || (PKG_TYPES[viewPkg.type] || PKG_TYPES.sessions20).perSession} KD)</span><button onClick={() => copyCode(s.code)} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold cursor-pointer hover:opacity-80" style={{ background: copiedCode === s.code ? CL.successBg : "#fff", color: copiedCode === s.code ? CL.success : CL.mid, border: `1px solid ${CL.bdr}` }}>{copiedCode === s.code ? "✓ Copied!" : "📋 Copy"}</button></div>}
+          </div>; })}</div>
+        </div>}
+      </div>;
+    })()}</Modal>
+
+    {/* DELETE CONFIRM */}
+    <Modal open={!!delPkg} onClose={() => setDelPkg(null)} title="⚠️ Delete Package">{delPkg && <div className="space-y-4"><div className="rounded-xl p-4 text-center" style={{ background: CL.dangerBg }}><p className="text-3xl mb-2">⚠️</p><p className="font-bold" style={{ color: CL.danger }}>Delete this package?</p></div><p className="text-sm text-center" style={{ color: CL.mid }}>Package <strong>{delPkg.code}</strong> for <strong>{data.customers.find(c => c.id === delPkg.customerId)?.name}</strong> will be permanently removed.</p><div className="flex justify-end gap-3"><Btn c="ghost" onClick={() => setDelPkg(null)}>Cancel</Btn><Btn c="danger" onClick={() => deletePkg(delPkg.id)}>Yes, Delete</Btn></div></div>}</Modal>
   </div>);
 }
 
