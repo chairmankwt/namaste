@@ -165,9 +165,6 @@ export default function App() {
   const saveVersionRef = useRef(0);
   const pendingSaveRef = useRef(null);
   const isSavingRef = useRef(false);
-  const saveVersionRef = useRef(0);
-  const pendingSaveRef = useRef(null);
-  const isSavingRef = useRef(false);
 
   // ── Load from Supabase (with localStorage fallback) ──
   useEffect(() => {
