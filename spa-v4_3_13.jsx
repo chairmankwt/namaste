@@ -162,6 +162,9 @@ export default function App() {
 
   const prevDataRef = useRef(null);
   const isRemoteUpdate = useRef(false);
+  const saveVersionRef = useRef(0);
+  const pendingSaveRef = useRef(null);
+  const isSavingRef = useRef(false);
 
   // ── Load from Supabase (with localStorage fallback) ──
   useEffect(() => {
@@ -206,6 +209,7 @@ export default function App() {
       (payload) => {
         if (payload.new && payload.new.payload) {
           const incoming = typeof payload.new.payload === "string" ? JSON.parse(payload.new.payload) : payload.new.payload;
+          if (incoming._saveVersion && incoming._saveVersion === saveVersionRef.current) { return; }
           isRemoteUpdate.current = true;
           setData(prev => {
             // Detect new appointments from remote
@@ -231,17 +235,27 @@ export default function App() {
     return () => { sb.removeChannel(channel); };
   }, []);
 
-  // ── Save to Supabase + localStorage backup ──
-  const save = useCallback(async (d) => {
-    setData(d);
+  // ── Save to Supabase + localStorage backup (serialized) ──
+  const flushSave = useCallback(async () => {
+    if (isSavingRef.current) return;
+    const d = pendingSaveRef.current;
+    if (!d) return;
+    pendingSaveRef.current = null;
+    isSavingRef.current = true;
     try {
-      await sb.from(SB_TABLE).upsert({ id: SB_ROW_ID, payload: d });
-    } catch (e) {
-      console.error("Supabase save error:", e);
-    }
-    // Always keep localStorage as backup
+      const ver = ++saveVersionRef.current;
+      const payload = { ...d, _saveVersion: ver };
+      await sb.from(SB_TABLE).upsert({ id: SB_ROW_ID, payload });
+    } catch (e) { console.error("Supabase save error:", e); }
     try { await window.storage.set(SK, JSON.stringify(d)); } catch (e) { }
+    isSavingRef.current = false;
+    if (pendingSaveRef.current) flushSave();
   }, []);
+  const save = useCallback((d) => {
+    setData(d);
+    pendingSaveRef.current = d;
+    flushSave();
+  }, [flushSave]);
   const addNotif = (msg, targets = []) => { const n = { id: uid(), message: msg, time: new Date().toISOString(), read: false, targets }; return { notifications: [n, ...(data.notifications || [])].slice(0, 200) }; };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center" style={{ background: CL.bg }}><p style={{ color: CL.primary }} className="animate-pulse text-lg font-semibold">Loading...</p></div>;
@@ -794,7 +808,7 @@ function BookingModal({ open, onClose, data, save, addNotif, editA, defDate, use
     if (!f.date) { setValErr("Date is required"); return; }
     setValErr("");
     let cust = data.customers.find(c => c.phone === f.cp && f.cp);
-    if (!cust) { cust = { id: uid(), name: f.cn, nameAr: f.cna, phone: f.cp, address: f.ca, addressAr: f.caa, preferredStaffId: f.pref, blocked: false, createdAt: new Date().toISOString() }; data.customers.push(cust); } else { cust.name = f.cn; cust.nameAr = f.cna || cust.nameAr; cust.address = f.ca; cust.addressAr = f.caa || cust.addressAr; if (f.pref) cust.preferredStaffId = f.pref; }
+    if (!cust) { cust = { id: uid(), name: f.cn, nameAr: f.cna, phone: f.cp, address: f.ca, addressAr: f.caa, preferredStaffId: f.pref, blocked: false, createdAt: new Date().toISOString() }; } else { cust = { ...cust, name: f.cn, nameAr: f.cna || cust.nameAr, address: f.ca, addressAr: f.caa || cust.addressAr, preferredStaffId: f.pref || cust.preferredStaffId }; }
     // Build main appointment
     const validExtras = extraServices.filter(es => es.serviceId);
     // Calculate extra service times before building appointment
@@ -837,7 +851,9 @@ function BookingModal({ open, onClose, data, save, addNotif, editA, defDate, use
     });
     const stN = data.staff.find(x => x.id === f.staffId)?.name || "";
     const nots = addNotif(`${editA ? "📝 Updated" : "📋 New"}: ${f.cn} - ${allSvcNames} w/ ${allStaffNames || stN} on ${fD(f.date)} ${f.time}`, [RL.ADMIN, RL.STAFF, RL.DRIVER]);
-    save({ ...data, appointments: na, customers: [...data.customers], invoices: ni, invoiceCounter: nc, ...nots });
+    const existingCustIdx = data.customers.findIndex(c => c.id === cust.id);
+    const updatedCustomers = existingCustIdx >= 0 ? data.customers.map(c => c.id === cust.id ? cust : c) : [...data.customers, cust];
+    save({ ...data, appointments: na, customers: updatedCustomers, invoices: ni, invoiceCounter: nc, ...nots });
     // Email notification to assigned staff
     const emailDetails = { customerName: f.cn, customerPhone: fPhone(f.cp), serviceName: allSvcNames, date: fD(f.date), time: f.time, duration: f.duration, address: f.ca, notes: f.notes };
     notifyStaffEmail(data, f.staffId, editA ? "edit" : "new", emailDetails);
