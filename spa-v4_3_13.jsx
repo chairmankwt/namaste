@@ -165,6 +165,9 @@ export default function App() {
   const saveVersionRef = useRef(0);
   const pendingSaveRef = useRef(null);
   const isSavingRef = useRef(false);
+  const saveVersionRef = useRef(0);
+  const pendingSaveRef = useRef(null);
+  const isSavingRef = useRef(false);
 
   // ── Load from Supabase (with localStorage fallback) ──
   useEffect(() => {
@@ -209,6 +212,7 @@ export default function App() {
       (payload) => {
         if (payload.new && payload.new.payload) {
           const incoming = typeof payload.new.payload === "string" ? JSON.parse(payload.new.payload) : payload.new.payload;
+          if (incoming._saveVersion && incoming._saveVersion === saveVersionRef.current) { return; }
           if (incoming._saveVersion && incoming._saveVersion === saveVersionRef.current) { return; }
           isRemoteUpdate.current = true;
           setData(prev => {
